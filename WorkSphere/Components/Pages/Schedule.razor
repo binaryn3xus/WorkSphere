@@ -1,0 +1,347 @@
+@page "/schedule"
+@using WorkSphere.Models
+@using WorkSphere.Services
+@inject WorkLogService WorkLogService
+@inject MigrationService MigrationService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" GutterBottom="true">Team Schedule</MudText>
+
+<MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Color="Color.Primary">
+    @* --- CALENDAR TAB --- *@
+    <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" />
+            <MudText Typo="Typo.h5" Class="mx-4" Style="min-width: 200px; text-align: center;">@_currentDate.ToString("MMMM yyyy")</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
+            <MudSpacer />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
+        </MudStack>
+
+        <div class="calendar-grid">
+            @foreach (var day in _daysOfWeek)
+            {
+                <div class="calendar-header">@day</div>
+            }
+
+            @for (int i = 0; i < _offsetDays; i++)
+            {
+                <div class="calendar-day empty"></div>
+            }
+
+            @for (int day = 1; day <= _daysInMonth; day++)
+            {
+                var date = new DateOnly(_currentDate.Year, _currentDate.Month, day);
+                var dayLogs = _logs.Where(l => l.LogDate == date).ToList();
+                
+                <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")">
+                    <div class="day-number">@day</div>
+                    <div class="day-content">
+                        @foreach (var log in dayLogs)
+                        {
+                            <MudTooltip Text="@($"{log.Employee?.Name}: {log.SubCategory} - {log.Details}")" Arrow="true" Placement="Placement.Top">
+                                <div class="log-namecard @GetLogCssClass(log)" @onclick="@(() => OpenEditDialog(log))">
+                                    <div class="card-top">
+                                        <span class="emp-name">@log.Employee?.Name</span>
+                                        @if (log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue)
+                                        {
+                                            <span class="log-time">@log.LogTime.Value.ToString("h:mm tt")</span>
+                                        }
+                                    </div>
+                                    <div class="card-bottom">
+                                        <MudIcon Icon="@GetLogIcon(log)" Size="Size.Small" Class="cat-icon" />
+                                        <span class="cat-label">@log.SubCategory</span>
+                                        @if (!string.IsNullOrWhiteSpace(log.Details))
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.Notes" Size="Size.Small" Class="details-icon" />
+                                        }
+                                    </div>
+                                </div>
+                            </MudTooltip>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </MudTabPanel>
+
+    @* --- LOGS TAB --- *@
+    <MudTabPanel Text="List View" Icon="@Icons.Material.Filled.List">
+        <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog">Add Entry</MudButton>
+            <MudSpacer />
+            <MudCheckBox T="bool" @bind-Value="_needsReviewOnly" Label="Needs Review" Color="Color.Warning" />
+        </MudStack>
+
+        <MudTable Items="@_logs" Filter="new Func<WorkLog, bool>(FilterFunc)" RowStyleFunc="GetRowStyle" Dense="true" Hover="true">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Daily Records</MudText>
+                <MudSpacer />
+                <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Date</MudTh>
+                <MudTh>Time</MudTh>
+                <MudTh>Employee</MudTh>
+                <MudTh>Main Category</MudTh>
+                <MudTh>Sub-Category</MudTh>
+                <MudTh>Details</MudTh>
+                <MudTh Style="width: 100px;">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Date">@context.LogDate?.ToString("MM/dd/yyyy")</MudTd>
+                <MudTd DataLabel="Time">@context.LogTime?.ToString("HH:mm")</MudTd>
+                <MudTd DataLabel="Employee">@context.Employee?.Name</MudTd>
+                <MudTd DataLabel="Main Category">@context.MainCategory</MudTd>
+                <MudTd DataLabel="Sub-Category">@context.SubCategory</MudTd>
+                <MudTd DataLabel="Details">@context.Details</MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(context))" Size="Size.Small" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteLog(context.Id))" Size="Size.Small" />
+                </MudTd>
+            </RowTemplate>
+            <PagerContent>
+                <MudTablePager />
+            </PagerContent>
+        </MudTable>
+    </MudTabPanel>
+</MudTabs>
+
+<style>
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+        background-color: var(--mud-palette-divider);
+        border: 1px solid var(--mud-palette-divider);
+    }
+
+    .calendar-header {
+        background-color: var(--mud-palette-background-grey);
+        padding: 12px;
+        text-align: center;
+        font-weight: bold;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
+    }
+
+    .calendar-day {
+        background-color: var(--mud-palette-surface);
+        min-height: 140px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        transition: background-color 0.2s;
+    }
+
+    .calendar-day:hover {
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .calendar-day.empty {
+        background-color: var(--mud-palette-background-grey);
+        opacity: 0.5;
+    }
+
+    .calendar-day.today {
+        border: 2px solid var(--mud-palette-primary);
+        z-index: 1;
+    }
+
+    .day-number {
+        font-weight: 900;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        opacity: 0.7;
+    }
+
+    .calendar-day.today .day-number {
+        color: var(--mud-palette-primary);
+        opacity: 1;
+    }
+
+    .day-content {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .log-namecard {
+        font-size: 0.75rem;
+        padding: 6px 8px;
+        border-radius: 6px;
+        color: var(--mud-palette-text-primary);
+        background-color: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-divider);
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border-left-width: 4px !important;
+    }
+
+    .log-namecard:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--mud-palette-divider);
+        padding-bottom: 4px;
+        margin-bottom: 2px;
+    }
+
+    .emp-name {
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .log-time {
+        font-size: 0.6rem;
+        opacity: 0.7;
+        font-family: monospace;
+    }
+
+    .card-bottom {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        opacity: 0.9;
+    }
+
+    .cat-label {
+        font-size: 0.65rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .cat-icon { font-size: 0.8rem !important; }
+    .details-icon { font-size: 0.8rem !important; margin-left: auto; opacity: 0.6; }
+
+    /* Sub-Category Accent Borders using Theme Variables */
+    .cat-office { border-left-color: var(--mud-palette-info) !important; }
+    .cat-wfh { border-left-color: var(--mud-palette-primary) !important; }
+    .cat-remote { border-left-color: var(--mud-palette-secondary) !important; }
+    .cat-pto { border-left-color: var(--mud-palette-success) !important; }
+    .cat-sick { border-left-color: var(--mud-palette-error) !important; }
+    .cat-fmla { border-left-color: var(--mud-palette-error-darken) !important; }
+    .cat-other { border-left-color: var(--mud-palette-grey-darken) !important; }
+</style>
+
+@code {
+    private DateTime _currentDate = DateTime.Today;
+    private List<WorkLog> _logs = new();
+    private string[] _daysOfWeek = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    private string _searchString = "";
+    private bool _needsReviewOnly = false;
+
+    private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
+    private int _offsetDays => (int)new DateTime(_currentDate.Year, _currentDate.Month, 1).DayOfWeek;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _logs = (await WorkLogService.GetWorkLogsAsync()).ToList();
+    }
+
+    private string GetLogCssClass(WorkLog log) => log.SubCategory switch
+    {
+        "In-Office" => "cat-office",
+        "Work From Home" => "cat-wfh",
+        "Remote Location" => "cat-remote",
+        "PTO" => "cat-pto",
+        "Sick Day" => "cat-sick",
+        "FMLA Day" => "cat-fmla",
+        "Comp Day" => "cat-pto",
+        _ => "cat-other"
+    };
+
+    private string GetLogIcon(WorkLog log) => log.SubCategory switch
+    {
+        "In-Office" => Icons.Material.Filled.Business,
+        "Work From Home" => Icons.Material.Filled.Home,
+        "Remote Location" => Icons.Material.Filled.Factory,
+        "PTO" => Icons.Material.Filled.BeachAccess,
+        "Sick Day" => Icons.Material.Filled.LocalHospital,
+        "FMLA Day" => Icons.Material.Filled.FamilyRestroom,
+        "Comp Day" => Icons.Material.Filled.History,
+        _ => Icons.Material.Filled.Label
+    };
+
+    private string GetRowStyle(WorkLog log, int index)
+    {
+        if (log.MainCategory == "Other" || log.SubCategory == "Other")
+            return "background-color: rgba(255, 152, 0, 0.15);";
+        return "";
+    }
+
+    private bool FilterFunc(WorkLog log)
+    {
+        if (_needsReviewOnly && log.MainCategory != "Other" && log.SubCategory != "Other")
+            return false;
+        if (string.IsNullOrWhiteSpace(_searchString)) return true;
+        var search = _searchString.ToLower();
+        return (log.Employee?.Name?.ToLower().Contains(search) ?? false) ||
+               (log.MainCategory?.ToLower().Contains(search) ?? false) ||
+               (log.SubCategory?.ToLower().Contains(search) ?? false) ||
+               (log.Details?.ToLower().Contains(search) ?? false) ||
+               (log.OriginalDetails?.ToLower().Contains(search) ?? false);
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Add Log", options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await WorkLogService.AddWorkLogAsync((WorkLog)result.Data!);
+            await LoadData();
+            Snackbar.Add("Entry added", Severity.Success);
+        }
+    }
+
+    private async Task OpenEditDialog(WorkLog log)
+    {
+        var parameters = new DialogParameters<AddWorkLogDialog> { { x => x.Log, log } };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Edit Log", parameters, options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            await WorkLogService.UpdateWorkLogAsync((WorkLog)result.Data!);
+            await LoadData();
+            Snackbar.Add("Entry updated", Severity.Success);
+        }
+    }
+
+    private async Task DeleteLog(int id)
+    {
+        bool? result = await DialogService.ShowMessageBoxAsync("Delete Entry", "Are you sure?", yesText:"Delete!", cancelText:"Cancel");
+        if (result == true)
+        {
+            await WorkLogService.DeleteWorkLogAsync(id);
+            await LoadData();
+            Snackbar.Add("Log deleted", Severity.Success);
+        }
+    }
+
+    private void PreviousMonth()
+ => _currentDate = _currentDate.AddMonths(-1);
+    private void NextMonth() => _currentDate = _currentDate.AddMonths(1);
+}

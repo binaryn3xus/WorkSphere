@@ -1,0 +1,99 @@
+@page "/incidents"
+@using WorkSphere.Models
+@using WorkSphere.Services
+@using MudBlazor
+@inject WorkLogService WorkLogService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4">
+        <MudText Typo="Typo.h4">Incident Tracker</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenAddIncidentDialog">New Incident</MudButton>
+    </MudStack>
+
+    <MudDataGrid T="Incident" Items="@_incidents" Filterable="true" SortMode="SortMode.Multiple" Hover="true">
+        <Columns>
+            <PropertyColumn Property="x => x.TicketNumber" Title="Ticket #" />
+            <PropertyColumn Property="x => x.Title" Title="Title" />
+            <PropertyColumn Property="x => x.StartedAt" Title="Started">
+                <CellTemplate>
+                    @context.Item.StartedAt.ToLocalTime().ToString("g")
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.EndedAt" Title="Ended">
+                <CellTemplate>
+                    @(context.Item.EndedAt?.ToLocalTime().ToString("g") ?? "In Progress")
+                </CellTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.IsClosed" Title="Status">
+                <CellTemplate>
+                    <MudChip T="string" Color="@(context.Item.IsClosed ? Color.Success : Color.Warning)" Size="Size.Small">
+                        @(context.Item.IsClosed ? "Closed" : "Open")
+                    </MudChip>
+                </CellTemplate>
+            </PropertyColumn>
+            <TemplateColumn CellClass="d-flex justify-end">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditIncidentDialog(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteIncident(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+</MudContainer>
+
+@code {
+    private IEnumerable<Incident> _incidents = new List<Incident>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadIncidents();
+    }
+
+    private async Task LoadIncidents()
+    {
+        _incidents = await WorkLogService.GetIncidentsAsync();
+    }
+
+    private async Task OpenAddIncidentDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters<IncidentDialog> { { x => x.Incident, new Incident() } };
+        var dialog = await DialogService.ShowAsync<IncidentDialog>("Add Incident", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await WorkLogService.AddIncidentAsync((Incident)result.Data!);
+            Snackbar.Add("Incident added successfully", Severity.Success);
+            await LoadIncidents();
+        }
+    }
+
+    private async Task OpenEditIncidentDialog(Incident incident)
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters<IncidentDialog> { { x => x.Incident, incident } };
+        var dialog = await DialogService.ShowAsync<IncidentDialog>("Edit Incident", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await WorkLogService.UpdateIncidentAsync((Incident)result.Data!);
+            Snackbar.Add("Incident updated successfully", Severity.Success);
+            await LoadIncidents();
+        }
+    }
+
+    private async Task DeleteIncident(Incident incident)
+    {
+        bool? confirm = await DialogService.ShowMessageBoxAsync("Confirm Delete", $"Are you sure you want to delete incident {incident.TicketNumber}?", yesText: "Delete", cancelText: "Cancel");
+        if (confirm == true)
+        {
+            await WorkLogService.DeleteIncidentAsync(incident.Id);
+            Snackbar.Add("Incident deleted", Severity.Info);
+            await LoadIncidents();
+        }
+    }
+}

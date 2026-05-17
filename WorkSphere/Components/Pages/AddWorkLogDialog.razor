@@ -1,0 +1,187 @@
+@using WorkSphere.Models
+@using WorkSphere.Services
+@using MudBlazor
+@inject WorkLogService WorkLogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@_title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="4">
+            @* Quick Action Shortcuts *@
+            <MudText Typo="Typo.caption" Class="mb-n2">Quick Actions</MudText>
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Business" OnClick="@(() => SetQuickAction("Work", "In-Office"))">Office</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Home" OnClick="@(() => SetQuickAction("Work", "Work From Home"))">WFH</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.ErrorOutline" OnClick="@(() => SetQuickAction("Work", "Incident Response", true))">GET Comp</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.AlarmOff" OnClick="@(() => SetQuickAction("Leave", "Comp Day"))">USE Comp</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.BeachAccess" OnClick="@(() => SetQuickAction("Leave", "PTO"))">PTO</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.LocalHospital" OnClick="@(() => SetQuickAction("Leave", "Sick Day"))">Sick</MudButton>
+            </MudStack>
+
+            <MudDivider Class="my-2" />
+
+            <MudGrid>
+                <MudItem xs="6">
+                    <MudDatePicker Label="Date" @bind-Date="DateProxy" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTimePicker Label="Time" @bind-Time="TimeProxy" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="int" Label="Employee" @bind-Value="_log.EmployeeId">
+                        @foreach (var emp in _employees)
+                        {
+                            <MudSelectItem Value="@emp.Id">@emp.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudSelect T="string" Label="Main Category" Value="_log.MainCategory" ValueChanged="OnMainCategoryChanged">
+                        @foreach (var main in _categoryMap.Keys)
+                        {
+                            <MudSelectItem Value="@main" />
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudSelect T="string" Label="Sub-Category" @bind-Value="_log.SubCategory">
+                        @foreach (var sub in _currentSubCategories)
+                        {
+                            <MudSelectItem Value="@sub" />
+                        }
+                    </MudSelect>
+                </MudItem>
+                
+                <MudItem xs="12">
+                    <MudSelect T="int?" Label="Linked Incident (Earns Comp Time)" @bind-Value="_log.IncidentId" Clearable="true">
+                        @foreach (var inc in _incidents)
+                        {
+                            <MudSelectItem Value="@((int?)inc.Id)">@inc.ToString()</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="6">
+                    <MudCheckBox @bind-Value="_log.EarnsCompTime" Label="Earns Comp Time" Color="Color.Primary" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField Label="Hours" @bind-Value="_log.Hours" Min="0" Step="0.25m" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    @* Details with Hot Buttons *@
+                    <div>
+                        <MudTextField Label="Details" @bind-Value="_log.Details" Lines="2" />
+                        <MudStack Row="true" Spacing="1" Class="mt-1">
+                            <MudChip T="string" Size="Size.Small" OnClick="@(() => AddDetail("Unexpected"))" Variant="Variant.Text">+Unexpected</MudChip>
+                            <MudChip T="string" Size="Size.Small" OnClick="@(() => AddDetail("Swap"))" Variant="Variant.Text">+Swap</MudChip>
+                        </MudStack>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save Entry</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public WorkLog Log { get; set; } = new() 
+    { 
+        LogDate = DateOnly.FromDateTime(DateTime.Today),
+        LogTime = new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute),
+        MainCategory = "Work",
+        SubCategory = "In-Office"
+    };
+
+    private string _title => Log.Id == 0 ? "Add Log" : "Edit Log";
+    private WorkLog _log = new();
+    private IEnumerable<Employee> _employees = new List<Employee>();
+    private IEnumerable<Incident> _incidents = new List<Incident>();
+
+    private Dictionary<string, List<string>> _categoryMap = new()
+    {
+        { "Work", new List<string> { "In-Office", "Work From Home", "Remote Location", "Incident Response" } },
+        { "Leave", new List<string> { "PTO", "Sick Day", "FMLA Day", "Comp Day" } },
+        { "Other", new List<string> { "Other" } }
+    };
+
+    private List<string> _currentSubCategories => _categoryMap.ContainsKey(_log.MainCategory) 
+        ? _categoryMap[_log.MainCategory] 
+        : new List<string> { "Other" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _employees = await WorkLogService.GetEmployeesAsync();
+        _incidents = await WorkLogService.GetIncidentsAsync();
+        
+        _log = new WorkLog
+        {
+            Id = Log.Id,
+            LogDate = Log.LogDate,
+            LogTime = Log.LogTime,
+            EmployeeId = Log.EmployeeId == 0 ? _employees.FirstOrDefault()?.Id ?? 0 : Log.EmployeeId,
+            MainCategory = Log.MainCategory,
+            SubCategory = Log.SubCategory,
+            Details = Log.Details,
+            OriginalDetails = Log.OriginalDetails,
+            IncidentId = Log.IncidentId,
+            EarnsCompTime = Log.EarnsCompTime,
+            Hours = Log.Hours
+        };
+    }
+
+    private void SetQuickAction(string main, string sub, bool earnsComp = false)
+    {
+        _log.MainCategory = main;
+        _log.SubCategory = sub;
+        _log.EarnsCompTime = earnsComp;
+        
+        // Auto-set standard details for common actions
+        if (string.IsNullOrWhiteSpace(_log.Details))
+        {
+            if (sub == "Work From Home") _log.Details = "Work From Home (Standard)";
+            if (sub == "In-Office") _log.Details = "Arrive in Office";
+            if (sub == "Incident Response") _log.Details = "Responding to Incident";
+            if (sub == "Comp Day") _log.Details = "Using Comp Time";
+        }
+
+        Snackbar.Add($"Set to {sub}", Severity.Info);
+    }
+
+    private void AddDetail(string text)
+    {
+        if (string.IsNullOrWhiteSpace(_log.Details))
+            _log.Details = text;
+        else if (!_log.Details.Contains(text))
+            _log.Details += $" ({text})";
+    }
+
+    private void OnMainCategoryChanged(string val)
+    {
+        _log.MainCategory = val;
+        _log.SubCategory = _categoryMap[val].First();
+    }
+
+    private DateTime? DateProxy
+    {
+        get => _log.LogDate?.ToDateTime(TimeOnly.MinValue);
+        set => _log.LogDate = value.HasValue ? DateOnly.FromDateTime(value.Value) : null;
+    }
+
+    private TimeSpan? TimeProxy
+    {
+        get => _log.LogTime?.ToTimeSpan();
+        set => _log.LogTime = value.HasValue ? TimeOnly.FromTimeSpan(value.Value) : null;
+    }
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_log));
+    private void Cancel() => MudDialog.Cancel();
+}

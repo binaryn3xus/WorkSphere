@@ -1,0 +1,165 @@
+@page "/"
+@using WorkSphere.Models
+@using WorkSphere.Services
+@inject WorkLogService WorkLogService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Home - WorkSphere</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Welcome to WorkSphere</MudText>
+<MudText Class="mb-8" Typo="Typo.h6">Team management made simple.</MudText>
+
+<MudGrid>
+    @* --- TOP ROW: ACTION & STATUS --- *@
+    <MudItem xs="12" md="7">
+        <MudCard Elevation="4" Class="mud-height-full pa-2" Style="border-top: 6px solid var(--mud-palette-primary);">
+            <MudCardContent>
+                <MudText Typo="Typo.h4" Color="Color.Primary" GutterBottom="true" Style="font-weight: 800;">Quick Log</MudText>
+                <MudText Typo="Typo.body1" Class="mb-6">Ready to record your day? Use the button below to quickly add a new log entry to the schedule.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenAddDialog" Style="font-weight: bold; padding: 12px 24px;">New Log Entry</MudButton>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="5">
+        <MudPaper Elevation="4" Class="pa-4 mud-height-full">
+            <MudText Typo="Typo.h6" GutterBottom="true" Class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Today" Color="Color.Primary" Class="mr-2" /> Today's Presence
+            </MudText>
+            <MudDivider Class="mb-3" />
+            <div style="max-height: 200px; overflow-y: auto;">
+                @if (_todaysLogs.Any())
+                {
+                    <MudList T="string">
+                        @foreach (var log in _todaysLogs)
+                        {
+                            <MudListItem Icon="@GetLogIcon(log)" IconColor="@GetLogColor(log)">
+                                <div class="d-flex justify-space-between align-center">
+                                    <MudText Typo="Typo.body1"><b>@log.Employee?.Name</b></MudText>
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@log.SubCategory</MudChip>
+                                </div>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Text">No logs recorded for today yet.</MudAlert>
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* --- MIDDLE ROW: MINI DASHBOARD --- *@
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="4" Class="pa-4 d-flex flex-column align-center justify-center" Style="height: 180px;">
+            <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+            <MudText Typo="Typo.h6">Active Team</MudText>
+            <MudText Typo="Typo.h3" Color="Color.Secondary">@_totalEmployees</MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="4" Class="pa-4 d-flex flex-column align-center justify-center" Style="height: 180px;">
+            <MudIcon Icon="@Icons.Material.Filled.Insights" Size="Size.Large" Color="Color.Info" Class="mb-2" />
+            <MudText Typo="Typo.h6">Month Logs</MudText>
+            <MudText Typo="Typo.h3" Color="Color.Info">@_monthLogsCount</MudText>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <div @onclick="@(() => Navigation.NavigateTo("/schedule"))" style="cursor: pointer;">
+            <MudPaper Elevation="4" Class="pa-4 d-flex flex-column align-center justify-center" Style="height: 180px;">
+                <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" Size="Size.Large" Color="Color.Success" Class="mb-2" />
+                <MudText Typo="Typo.h6">Team Schedule</MudText>
+                <MudText Typo="Typo.body2">View Full Calendar</MudText>
+            </MudPaper>
+        </div>
+    </MudItem>
+
+    @* --- BOTTOM ROW: THIS WEEKS ACTIVITY --- *@
+    <MudItem xs="12">
+        <MudPaper Elevation="4" Class="pa-4">
+            <MudText Typo="Typo.h6" GutterBottom="true">This Week's Activity</MudText>
+            <MudTable Items="@_weeklyLogs" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Employee</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Details</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.LogDate?.ToString("MM/dd")</MudTd>
+                    <MudTd><b>@context.Employee?.Name</b></MudTd>
+                    <MudTd>
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@GetLogIcon(context)" Size="Size.Small" Color="@GetLogColor(context)" Class="mr-2" />
+                            @context.SubCategory
+                        </div>
+                    </MudTd>
+                    <MudTd Style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@context.Details</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private List<WorkLog> _todaysLogs = new();
+    private List<WorkLog> _weeklyLogs = new();
+    private int _totalEmployees;
+    private int _monthLogsCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        _todaysLogs = (await WorkLogService.GetTodaysStatusAsync()).ToList();
+        _weeklyLogs = (await WorkLogService.GetThisWeeksActivityAsync()).ToList();
+        
+        var employees = await WorkLogService.GetEmployeesAsync();
+        _totalEmployees = employees.Count();
+
+        // Count logs for current month
+        var allLogs = await WorkLogService.GetWorkLogsAsync();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        _monthLogsCount = allLogs.Count(l => l.LogDate?.Month == today.Month && l.LogDate?.Year == today.Year);
+    }
+
+    private async Task OpenAddDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Add Log", options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await WorkLogService.AddWorkLogAsync((WorkLog)result.Data!);
+            await LoadDashboardData();
+            Snackbar.Add("Entry added successfully", Severity.Success);
+        }
+    }
+
+    private string GetLogIcon(WorkLog log) => log.SubCategory switch
+    {
+        "In-Office" => Icons.Material.Filled.Business,
+        "Work From Home" => Icons.Material.Filled.Home,
+        "Remote Location" => Icons.Material.Filled.Factory,
+        "PTO" => Icons.Material.Filled.BeachAccess,
+        "Sick Day" => Icons.Material.Filled.LocalHospital,
+        "FMLA Day" => Icons.Material.Filled.FamilyRestroom,
+        _ => Icons.Material.Filled.Label
+    };
+
+    private Color GetLogColor(WorkLog log) => log.MainCategory switch
+    {
+        "Work" => Color.Primary,
+        "Leave" => Color.Error,
+        _ => Color.Default
+    };
+}

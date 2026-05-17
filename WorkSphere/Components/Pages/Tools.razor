@@ -1,0 +1,54 @@
+@page "/tools"
+@using WorkSphere.Services
+@inject MigrationService MigrationService
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" GutterBottom="true">System Tools</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4">
+            <MudStack Spacing="4">
+                <MudText Typo="Typo.h6">Data Migration</MudText>
+                <MudText Typo="Typo.body2">
+                    Import work logs from Markdown files. The system expects files in the <code>WorkSphere/Import</code> directory.
+                </MudText>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                    <strong>Process:</strong> The importer parses Markdown tables with the format <code>| Date | Time | Initials | Details |</code>. It uses the employee initials to map logs to existing records and deduplicates based on date, employee, and the original details string.
+                </MudAlert>
+                <MudStack Row="true" AlignItems="AlignItems.Center">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportMarkdown" StartIcon="@Icons.Material.Filled.ImportExport">
+                        Run Import
+                    </MudButton>
+                    @if (_isImporting)
+                    {
+                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+                        <MudText Typo="Typo.caption">Processing...</MudText>
+                    }
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool _isImporting = false;
+
+    private async Task ImportMarkdown()
+    {
+        _isImporting = true;
+        try
+        {
+            await MigrationService.MigrateAsync();
+            Snackbar.Add("Import successful", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+}

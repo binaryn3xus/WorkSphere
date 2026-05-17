@@ -1,0 +1,282 @@
+@page "/reports"
+@using WorkSphere.Services
+@using WorkSphere.Models
+@inject WorkLogService WorkLogService
+
+<MudText Typo="Typo.h4" GutterBottom="true" Class="mb-6">Analytics Dashboard</MudText>
+
+<MudGrid>
+    @* Summary Cards *@
+    <MudItem xs="12" sm="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-height-full" Elevation="3">
+            <MudIcon Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary" Size="Size.Large" />
+            <MudText Typo="Typo.h6">Total Logs</MudText>
+            <MudText Typo="Typo.h3">@_totalLogs</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-height-full" Elevation="3">
+            <MudIcon Icon="@Icons.Material.Filled.People" Color="Color.Secondary" Size="Size.Large" />
+            <MudText Typo="Typo.h6">Team Members</MudText>
+            <MudText Typo="Typo.h3">@_totalEmployees</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-height-full" Elevation="3" Style="border-bottom: 4px solid var(--mud-palette-warning);">
+            <MudIcon Icon="@Icons.Material.Filled.Alarm" Color="Color.Warning" Size="Size.Large" />
+            <MudText Typo="Typo.h6">Total Comp Balance</MudText>
+            <MudText Typo="Typo.h3">@_totalCompBalance</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="3">
+        <MudPaper Class="pa-4 d-flex flex-column align-center justify-center mud-height-full" Elevation="3">
+            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" />
+            <MudText Typo="Typo.h6">Latest Activity</MudText>
+            <MudText Typo="Typo.body1">@_lastUpdateDate</MudText>
+        </MudPaper>
+    </MudItem>
+
+    @* Category Distributions (Row 1) *@
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="3" Style="overflow: hidden;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Main Distribution</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="height: 300px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="@_mainCategoryData.AsChartDataSet()" ChartLabels="@_mainCategoryLabels" Width="200px" Height="200px" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="3" Style="overflow: hidden;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Sub Distribution</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="height: 300px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <MudChart T="double" ChartType="ChartType.Donut" ChartSeries="@_subCategoryData.AsChartDataSet()" ChartLabels="@_subCategoryLabels" Width="200px" Height="200px" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="3" Style="overflow: hidden;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Comp Time Balance Sheet</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="height: 300px; padding: 16px;">
+                <MudTable Items="@_compTimeStats" Dense="true" Hover="true" Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Employee</MudTh>
+                        <MudTh>Earned</MudTh>
+                        <MudTh>Used</MudTh>
+                        <MudTh>Balance</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Name</MudTd>
+                        <MudTd>@context.Earned</MudTd>
+                        <MudTd>@context.Used</MudTd>
+                        <MudTd><b>@context.Balance</b></MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    @* Employee Distribution (Row 2) *@
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="3" Style="overflow: hidden;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Logs per Employee</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="height: 320px; display: flex; align-items: center; justify-content: center; padding: 0;">
+                <MudChart T="double" ChartType="ChartType.Pie" ChartSeries="@_employeeData.AsChartDataSet()" ChartLabels="@_employeeLabels" Width="220px" Height="220px" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="3" Style="overflow: hidden;">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Detailed Sub-Category Breakdown</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent Style="height: 320px; padding: 16px;">
+                <MudChart T="double" ChartType="ChartType.Bar" ChartSeries="@_subCategorySeries" ChartLabels="@_subCategoryLabels" Width="100%" Height="250px" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    @* Activity Matrix *@
+    <MudItem xs="12">
+        <MudCard Elevation="3">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Team Attendance Matrix (Last 30 Days)</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudTable Items="@_matrixRows" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm">
+                    <HeaderContent>
+                        <MudTh>Date</MudTh>
+                        @foreach (var empName in _allEmployeeNames)
+                        {
+                            <MudTh Style="text-align: center;">@empName</MudTh>
+                        }
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Date">@context.Date.ToString("MM/dd (ddd)")</MudTd>
+                        @foreach (var empName in _allEmployeeNames)
+                        {
+                            var status = context.EmployeeStatus.ContainsKey(empName) ? context.EmployeeStatus[empName] : null;
+                            <MudTd Style="text-align: center;">
+                                @if (status != null)
+                                {
+                                    <MudTooltip Text="@status.SubCategory">
+                                        <MudIcon Icon="@GetStatusIcon(status.SubCategory)" Color="@GetStatusColor(status.MainCategory)" Size="Size.Small" />
+                                    </MudTooltip>
+                                }
+                                else
+                                {
+                                    <span style="opacity: 0.2">-</span>
+                                }
+                            </MudTd>
+                        }
+                    </RowTemplate>
+                </MudTable>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private int _totalLogs;
+    private int _totalEmployees;
+    private decimal _totalCompBalance;
+    private string _lastUpdateDate = "Never";
+
+    private double[] _mainCategoryData = [];
+    private string[] _mainCategoryLabels = [];
+
+    private double[] _subCategoryData = [];
+    private string[] _subCategoryLabels = [];
+    private List<ChartSeries<double>> _subCategorySeries = new();
+
+    private double[] _employeeData = [];
+    private string[] _employeeLabels = [];
+
+    private List<string> _allEmployeeNames = new();
+    private List<MatrixRow> _matrixRows = new();
+    private List<CompTimeStat> _compTimeStats = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Main Categories
+        var mainStats = (await WorkLogService.GetMainCategoryStatsAsync()).ToList();
+        _mainCategoryData = mainStats.Select(s => (double)Convert.ToDouble(GetValue<object>(s, "count"))).ToArray();
+        _mainCategoryLabels = mainStats.Select(s => (string)(Convert.ToString(GetValue<object>(s, "maincategory")) ?? "Unknown")).ToArray();
+
+        // 2. Sub Categories
+        var subStats = (await WorkLogService.GetSubCategoryStatsAsync()).ToList();
+        _subCategoryData = subStats.Select(s => (double)Convert.ToDouble(GetValue<object>(s, "count"))).ToArray();
+        _subCategoryLabels = subStats.Select(s => (string)(Convert.ToString(GetValue<object>(s, "category")) ?? "Unknown")).ToArray();
+        
+        _subCategorySeries = new List<ChartSeries<double>>
+        {
+            new ChartSeries<double> { Name = "Entries", Data = _subCategoryData }
+        };
+
+        // 3. Employee Stats
+        var employeeStats = (await WorkLogService.GetEmployeeStatsAsync()).ToList();
+        _employeeData = employeeStats.Select(s => (double)Convert.ToDouble(GetValue<object>(s, "count"))).ToArray();
+        _employeeLabels = employeeStats.Select(s => (string)(Convert.ToString(GetValue<object>(s, "name")) ?? "Unknown")).ToArray();
+        _allEmployeeNames = _employeeLabels.ToList();
+
+        // 4. Comp Time Stats
+        var compStats = (await WorkLogService.GetCompTimeStatsAsync()).ToList();
+        _compTimeStats = compStats.Select(s => new CompTimeStat 
+        { 
+            Name = (string)(Convert.ToString(GetValue<object>(s, "name")) ?? "Unknown"), 
+            Earned = (decimal)Convert.ToDecimal(GetValue<object>(s, "earned")), 
+            Used = (decimal)Convert.ToDecimal(GetValue<object>(s, "used")), 
+            Balance = (decimal)Convert.ToDecimal(GetValue<object>(s, "balance")) 
+        }).ToList();
+        _totalCompBalance = _compTimeStats.Sum(s => s.Balance);
+
+        // 5. Matrix Pivot
+        var allLogs = (await WorkLogService.GetWorkLogsAsync()).ToList();
+        var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+        
+        _matrixRows = allLogs
+            .Where(l => l.LogDate >= cutoff)
+            .GroupBy(l => l.LogDate)
+            .OrderByDescending(g => g.Key)
+            .Select(g => new MatrixRow 
+            { 
+                Date = g.Key ?? default,
+                EmployeeStatus = g.ToDictionary(l => l.Employee?.Name ?? "Unknown", l => l)
+            })
+            .ToList();
+
+        _totalLogs = (int)_mainCategoryData.Sum();
+        _totalEmployees = _employeeLabels.Length;
+        
+        if (allLogs.Any())
+        {
+            _lastUpdateDate = allLogs.Max(l => l.LogDate)?.ToString("MM/dd/yyyy") ?? "Never";
+        }
+    }
+
+    private string GetStatusIcon(string subCat) => subCat switch
+    {
+        "In-Office" => Icons.Material.Filled.Business,
+        "Work From Home" => Icons.Material.Filled.Home,
+        "Remote Location" => Icons.Material.Filled.Factory,
+        "PTO" => Icons.Material.Filled.BeachAccess,
+        "Sick Day" => Icons.Material.Filled.LocalHospital,
+        "FMLA Day" => Icons.Material.Filled.FamilyRestroom,
+        "Meeting" => Icons.Material.Filled.Groups,
+        "Training" => Icons.Material.Filled.School,
+        "Incident Response" => Icons.Material.Filled.ErrorOutline,
+        "Comp Day" => Icons.Material.Filled.AlarmOff,
+        _ => Icons.Material.Filled.Label
+    };
+
+    private Color GetStatusColor(string mainCat) => mainCat switch
+    {
+        "Work" => Color.Primary,
+        "Leave" => Color.Error,
+        _ => Color.Default
+    };
+
+    private T? GetValue<T>(dynamic obj, string propertyName)
+    {
+        var dict = (IDictionary<string, object>)obj;
+        var key = dict.Keys.FirstOrDefault(k => k.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
+        if (key == null) return default;
+        return (T)dict[key];
+    }
+
+    public class MatrixRow
+    {
+        public DateOnly Date { get; set; }
+        public Dictionary<string, WorkLog> EmployeeStatus { get; set; } = new();
+    }
+
+    public class CompTimeStat
+    {
+        public string Name { get; set; } = string.Empty;
+        public decimal Earned { get; set; }
+        public decimal Used { get; set; }
+        public decimal Balance { get; set; }
+    }
+}

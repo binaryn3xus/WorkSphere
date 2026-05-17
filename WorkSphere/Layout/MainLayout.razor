@@ -1,0 +1,103 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="@_theme" IsDarkMode="@_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        <MudText Typo="Typo.h5" Class="ml-3">WorkSphere</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
+    </MudAppBar>
+    <MudDrawer id="nav-drawer" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent Class="mt-16 pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">??</span>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = true;
+    private MudTheme? _theme = null;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        _theme = new()
+        {
+            PaletteLight = _lightPalette,
+            PaletteDark = _darkPalette,
+            LayoutProperties = new LayoutProperties()
+        };
+    }
+
+    private void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void DarkModeToggle()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private readonly PaletteLight _lightPalette = new()
+    {
+        Primary = "#2563eb", // Modern Indigo
+        Secondary = "#0d9488", // Modern Teal
+        AppbarBackground = "#f8fafc",
+        AppbarText = "#1e293b",
+        Background = "#f1f5f9",
+        DrawerBackground = "#ffffff",
+        DrawerText = "#334155",
+        Surface = "#ffffff",
+        Info = "#0284c7",
+        Success = "#059669",
+        Warning = "#d97706",
+        Error = "#dc2626",
+        Divider = "#e2e8f0",
+        TableLines = "#e2e8f0",
+        LinesDefault = "#e2e8f0",
+    };
+
+    private readonly PaletteDark _darkPalette = new()
+    {
+        Primary = "#38bdf8", // Sky Blue 400
+        Secondary = "#2dd4bf", // Teal 400
+        Surface = "#1e293b", // Slate 800
+        Background = "#0f172a", // Slate 900
+        BackgroundGray = "#1e293b",
+        AppbarBackground = "#0f172a",
+        AppbarText = "#f8fafc",
+        DrawerBackground = "#0f172a",
+        ActionDefault = "#94a3b8",
+        TextPrimary = "#f8fafc",
+        TextSecondary = "#94a3b8",
+        Info = "#0ea5e9",
+        Success = "#10b981",
+        Warning = "#f59e0b",
+        Error = "#f43f5e",
+        Divider = "#334155",
+        LinesDefault = "#33323e",
+        TableLines = "#33323e",
+    };
+
+    public string DarkLightModeButtonIcon => _isDarkMode switch
+    {
+        true => Icons.Material.Rounded.AutoMode,
+        false => Icons.Material.Outlined.DarkMode,
+    };
+}
+

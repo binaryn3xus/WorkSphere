@@ -1,0 +1,92 @@
+@page "/employees"
+@using WorkSphere.Models
+@using WorkSphere.Services
+@inject WorkLogService WorkLogService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.h4" GutterBottom="true">Manage Employees</MudText>
+
+<MudPaper Elevation="3" Class="pa-4 mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center">
+        <MudTextField @bind-Value="_newEmployee.Name" Label="Full Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <MudTextField @bind-Value="_newEmployee.Initials" Label="Initials" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="5" Style="width: 100px;" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEmployee">Add Employee</MudButton>
+    </MudStack>
+</MudPaper>
+
+<MudTable Items="@_employees" Dense="true" Hover="true" Elevation="3">
+    <HeaderContent>
+        <MudTh>ID</MudTh>
+        <MudTh>Name</MudTh>
+        <MudTh>Initials</MudTh>
+        <MudTh Style="width: 100px;">Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="ID">@context.Id</MudTd>
+        <MudTd DataLabel="Name">@context.Name</MudTd>
+        <MudTd DataLabel="Initials">@context.Initials</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteEmployee(context))" />
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private List<Employee> _employees = new();
+    private Employee _newEmployee = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployees();
+    }
+
+    private async Task LoadEmployees()
+    {
+        _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+    }
+
+    private async Task AddEmployee()
+    {
+        if (string.IsNullOrWhiteSpace(_newEmployee.Name) || string.IsNullOrWhiteSpace(_newEmployee.Initials))
+        {
+            Snackbar.Add("Name and Initials are required", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            // We need to add a method to WorkLogService for this
+            await WorkLogService.AddEmployeeAsync(_newEmployee);
+            _newEmployee = new Employee();
+            await LoadEmployees();
+            Snackbar.Add("Employee added", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteEmployee(Employee emp)
+    {
+        var result = await DialogService.ShowMessageBoxAsync(
+            "Delete Employee", 
+            $"Are you sure you want to delete {emp.Name}? This may fail if they have existing work logs.", 
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                await WorkLogService.DeleteEmployeeAsync(emp.Id);
+                await LoadEmployees();
+                Snackbar.Add("Employee removed", Severity.Success);
+            }
+            catch (Exception)
+            {
+                Snackbar.Add("Cannot delete employee with existing logs.", Severity.Error);
+            }
+        }
+    }
+}

@@ -1,0 +1,41 @@
+# .NET / Visual Studio
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.vs*
+[Dd]ebug/
+[Rr]elease/
+_ReSharper*/
+
+# Environment / Secrets
+appsettings.Development.json
+appsettings.Local.json
+.env
+.env.*
+secrets.json
+
+# Local Data (Project Specific)
+seed.sql
+*.db
+*.sqlite
+
+# OS Specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Gemini CLI / AI Tools
+.gemini/
+.geminiignore
+MEMORY.md
+
+# Local Data (Git Ignored)
+WorkSphere/Import/
