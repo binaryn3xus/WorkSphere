@@ -2,58 +2,85 @@ using MudBlazor.Services;
 using WorkSphere.Components;
 using WorkSphere.Services;
 using WorkSphere.Data;
+using Serilog;
 
 DapperTypeHandlers.Register();
 
-var builder = WebApplication.CreateBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-// Add MudBlazor services
-builder.Services.AddMudServices();
-
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-
-builder.Services.AddScoped<WorkLogService>();
-builder.Services.AddScoped<MigrationService>();
-
-var app = builder.Build();
-
-// Initialize Database
-using (var scope = app.Services.CreateScope())
+try
 {
-    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-    var connectionString = config.GetConnectionString("DefaultConnection") ?? "";
-    
-    if (!string.IsNullOrEmpty(connectionString))
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Remove default logging providers to prevent duplicate logs
+    builder.Logging.ClearProviders();
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext());
+
+    // Add MudBlazor services
+    builder.Services.AddMudServices();
+
+    // Add services to the container.
+    builder.Services.AddRazorComponents()
+        .AddInteractiveServerComponents();
+
+    builder.Services.AddScoped<WorkLogService>();
+    builder.Services.AddScoped<MigrationService>();
+
+    var app = builder.Build();
+
+    app.UseSerilogRequestLogging();
+
+    // Initialize Database
+    using (var scope = app.Services.CreateScope())
     {
-        try 
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var connectionString = config.GetConnectionString("DefaultConnection") ?? "";
+        
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            await SchemaInitializer.EnsureSchemaAsync(connectionString);
-            Console.WriteLine("Database schema initialized successfully.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Critical: Database initialization failed: {ex.Message}");
+            try 
+            {
+                await SchemaInitializer.EnsureSchemaAsync(connectionString);
+                Log.Information("Database schema initialized successfully.");
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Database initialization failed.");
+            }
         }
     }
-}
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+    // Configure the HTTP request pipeline.
+    if (!app.Environment.IsDevelopment())
+    {
+        app.UseExceptionHandler("/Error", createScopeForErrors: true);
+        // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+        app.UseHsts();
+    }
+
+    app.UseHttpsRedirection();
+
+
+    app.UseAntiforgery();
+
+    app.MapStaticAssets();
+    app.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
+
+    Log.Information("Starting WorkSphere web host");
+    app.Run();
+}
+catch (Exception ex)
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    Log.Fatal(ex, "Application terminated unexpectedly");
 }
-
-app.UseHttpsRedirection();
-
-
-app.UseAntiforgery();
-
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-app.Run();
+finally
+{
+    Log.CloseAndFlush();
+}

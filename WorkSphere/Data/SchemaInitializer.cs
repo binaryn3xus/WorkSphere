@@ -1,6 +1,7 @@
 using Dapper;
 using Npgsql;
 using System.IO;
+using Serilog;
 
 namespace WorkSphere.Data;
 
@@ -13,7 +14,7 @@ public static class SchemaInitializer
 
         try 
         {
-            Console.WriteLine("Executing schema initialization...");
+            Log.Information("Executing schema initialization...");
             
             // 1. Create Employees table
             await connection.ExecuteAsync(@"
@@ -74,26 +75,20 @@ public static class SchemaInitializer
                 END $$;");
             
             // 4. Check for local seed.sql and execute it
-            // Look in the project root (up two levels from the executing assembly in some environments, 
-            // but we'll try current directory first as that's where dotnet run usually starts)
             string seedPath = "seed.sql";
             if (File.Exists(seedPath))
             {
-                Console.WriteLine("Found local seed.sql, executing...");
+                Log.Information("Found local seed.sql, executing...");
                 string seedSql = await File.ReadAllTextAsync(seedPath);
                 await connection.ExecuteAsync(seedSql);
-                Console.WriteLine("Seed data applied.");
-            }
-            else
-            {
-                Console.WriteLine("No seed.sql found. Skipping data seeding.");
+                Log.Information("Seed data applied.");
             }
 
-            Console.WriteLine("Schema initialization complete.");
+            Log.Information("Schema initialization complete.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Critical Error during schema initialization: {ex.Message}");
+            Log.Error(ex, "Critical Error during schema initialization");
             throw;
         }
     }

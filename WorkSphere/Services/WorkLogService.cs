@@ -7,10 +7,12 @@ namespace WorkSphere.Services;
 public class WorkLogService
 {
     private readonly string _connectionString;
+    private readonly ILogger<WorkLogService> _logger;
 
-    public WorkLogService(IConfiguration configuration)
+    public WorkLogService(IConfiguration configuration, ILogger<WorkLogService> logger)
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        _logger = logger;
     }
 
     private NpgsqlConnection CreateConnection() => new NpgsqlConnection(_connectionString);
@@ -25,6 +27,7 @@ public class WorkLogService
 
     public async Task AddEmployeeAsync(Employee employee)
     {
+        _logger.LogInformation("Adding new employee: {Name}", employee.Name);
         const string sql = "INSERT INTO Employees (Name, Initials) VALUES (@Name, @Initials)";
         using var connection = CreateConnection();
         await connection.ExecuteAsync(sql, employee);
@@ -32,6 +35,7 @@ public class WorkLogService
 
     public async Task DeleteEmployeeAsync(int id)
     {
+        _logger.LogInformation("Deleting employee ID: {Id}", id);
         const string sql = "DELETE FROM Employees WHERE Id = @Id";
         using var connection = CreateConnection();
         await connection.ExecuteAsync(sql, new { Id = id });
@@ -48,6 +52,7 @@ public class WorkLogService
 
     public async Task AddIncidentAsync(Incident incident)
     {
+        _logger.LogInformation("Adding new incident: {Title} ({TicketNumber})", incident.Title, incident.TicketNumber);
         const string sql = @"
             INSERT INTO Incidents (TicketNumber, Title, Details, StartedAt, EndedAt, IsClosed)
             VALUES (@TicketNumber, @Title, @Details, @StartedAt, @EndedAt, @IsClosed)";
@@ -57,6 +62,7 @@ public class WorkLogService
 
     public async Task UpdateIncidentAsync(Incident incident)
     {
+        _logger.LogInformation("Updating incident ID: {Id} - {Title}", incident.Id, incident.Title);
         const string sql = @"
             UPDATE Incidents 
             SET TicketNumber = @TicketNumber, Title = @Title, Details = @Details, 
@@ -68,6 +74,7 @@ public class WorkLogService
 
     public async Task DeleteIncidentAsync(int id)
     {
+        _logger.LogInformation("Deleting incident ID: {Id}", id);
         const string sql = "DELETE FROM Incidents WHERE Id = @Id";
         using var connection = CreateConnection();
         await connection.ExecuteAsync(sql, new { Id = id });
@@ -105,6 +112,7 @@ public class WorkLogService
 
     public async Task AddWorkLogAsync(WorkLog log)
     {
+        _logger.LogInformation("Adding work log for employee {EmployeeId}: {MainCategory}/{SubCategory}", log.EmployeeId, log.MainCategory, log.SubCategory);
         const string sql = @"
             INSERT INTO WorkLogs (LogDate, LogTime, EmployeeId, MainCategory, SubCategory, Details, OriginalDetails, IncidentId, EarnsCompTime, Hours)
             VALUES (@LogDate, @LogTime, @EmployeeId, @MainCategory, @SubCategory, @Details, @OriginalDetails, @IncidentId, @EarnsCompTime, @Hours)";
@@ -115,6 +123,7 @@ public class WorkLogService
 
     public async Task UpdateWorkLogAsync(WorkLog log)
     {
+        _logger.LogInformation("Updating work log ID: {Id}", log.Id);
         const string sql = @"
             UPDATE WorkLogs 
             SET LogDate = @LogDate, LogTime = @LogTime, EmployeeId = @EmployeeId, 
@@ -129,6 +138,7 @@ public class WorkLogService
 
     public async Task DeleteWorkLogAsync(int id)
     {
+        _logger.LogInformation("Deleting work log ID: {Id}", id);
         const string sql = "DELETE FROM WorkLogs WHERE Id = @Id";
         using var connection = CreateConnection();
         await connection.ExecuteAsync(sql, new { Id = id });
