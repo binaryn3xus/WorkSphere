@@ -29,11 +29,21 @@ public static class SchemaInitializer
                     Id SERIAL PRIMARY KEY,
                     TicketNumber VARCHAR(50),
                     Title VARCHAR(200) NOT NULL,
-                    Description TEXT,
+                    Details TEXT,
                     StartedAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     EndedAt TIMESTAMP WITH TIME ZONE,
                     IsClosed BOOLEAN DEFAULT FALSE
                 );");
+
+            // Migration: Rename Description to Details if it exists
+            await connection.ExecuteAsync(@"
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT 1 FROM information_schema.columns 
+                               WHERE table_name='incidents' AND column_name='description') THEN
+                        ALTER TABLE Incidents RENAME COLUMN description TO details;
+                    END IF;
+                END $$;");
 
             // 3. Create WorkLogs table
             await connection.ExecuteAsync(@"
@@ -46,10 +56,22 @@ public static class SchemaInitializer
                     SubCategory VARCHAR(100) NOT NULL,
                     Details TEXT,
                     OriginalDetails TEXT,
-                    IncidentId INT REFERENCES Incidents(Id),
+                    IncidentId INT REFERENCES Incidents(Id) ON DELETE SET NULL,
                     EarnsCompTime BOOLEAN DEFAULT FALSE,
                     Hours DECIMAL(5,2) DEFAULT 0
                 );");
+
+            // Migration: Update IncidentId foreign key to ON DELETE SET NULL if not already set
+            await connection.ExecuteAsync(@"
+                DO $$ 
+                BEGIN 
+                    IF EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                               WHERE constraint_name='worklogs_incidentid_fkey' AND table_name='worklogs') THEN
+                        ALTER TABLE WorkLogs DROP CONSTRAINT worklogs_incidentid_fkey;
+                        ALTER TABLE WorkLogs ADD CONSTRAINT worklogs_incidentid_fkey 
+                            FOREIGN KEY (IncidentId) REFERENCES Incidents(Id) ON DELETE SET NULL;
+                    END IF;
+                END $$;");
             
             // 4. Check for local seed.sql and execute it
             // Look in the project root (up two levels from the executing assembly in some environments, 

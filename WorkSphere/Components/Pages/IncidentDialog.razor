@@ -9,7 +9,7 @@
         <MudStack Spacing="4">
             <MudTextField Label="Ticket Number" @bind-Value="Incident.TicketNumber" Placeholder="e.g., INC-123456" />
             <MudTextField Label="Title" @bind-Value="Incident.Title" Required="true" RequiredError="Title is required" />
-            <MudTextField Label="Description" @bind-Value="Incident.Description" Lines="3" />
+            <MudTextField Label="Details" @bind-Value="Incident.Details" Lines="3" />
             
             <MudGrid>
                 <MudItem xs="6">

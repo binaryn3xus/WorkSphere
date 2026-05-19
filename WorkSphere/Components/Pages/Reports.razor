@@ -3,7 +3,18 @@
 @using WorkSphere.Models
 @inject WorkLogService WorkLogService
 
-<MudText Typo="Typo.h4" GutterBottom="true" Class="mb-6">Analytics Dashboard</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-6">
+    <MudText Typo="Typo.h4">Analytics Dashboard</MudText>
+    <MudPaper Elevation="0" Class="pa-2" Style="width: 300px;">
+        <MudSelect T="int?" Label="Filter by Employee" Value="@_selectedEmployeeId" ValueChanged="OnEmployeeFilterChanged" Clearable="true" Placeholder="All Employees" Variant="Variant.Outlined" Dense="true">
+            <MudSelectItem T="int?" Value="null">All Employees</MudSelectItem>
+            @foreach (var emp in _employees)
+            {
+                <MudSelectItem T="int?" Value="@emp.Id">@emp.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudPaper>
+</MudStack>
 
 <MudGrid>
     @* Summary Cards *@
@@ -64,27 +75,32 @@
     </MudItem>
 
     <MudItem xs="12" md="4">
-        <MudCard Elevation="3" Style="overflow: hidden;">
+        <MudCard Elevation="3" Class="mud-height-full" Style="overflow: hidden;">
             <MudCardHeader>
                 <CardHeaderContent>
                     <MudText Typo="Typo.h6">Comp Time Balance Sheet</MudText>
                 </CardHeaderContent>
             </MudCardHeader>
-            <MudCardContent Style="height: 300px; padding: 16px;">
-                <MudTable Items="@_compTimeStats" Dense="true" Hover="true" Elevation="0">
-                    <HeaderContent>
-                        <MudTh>Employee</MudTh>
-                        <MudTh>Earned</MudTh>
-                        <MudTh>Used</MudTh>
-                        <MudTh>Balance</MudTh>
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd>@context.Name</MudTd>
-                        <MudTd>@context.Earned</MudTd>
-                        <MudTd>@context.Used</MudTd>
-                        <MudTd><b>@context.Balance</b></MudTd>
-                    </RowTemplate>
-                </MudTable>
+            <MudCardContent Style="max-height: 300px; overflow-y: auto; padding: 12px;">
+                <MudStack Spacing="2">
+                    @foreach (var stat in _compTimeStats)
+                    {
+                        <MudPaper Elevation="0" Class="pa-3 border-all mud-background-gray" Style="border: 1px solid var(--mud-palette-divider); border-radius: 8px;">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@stat.Name</MudText>
+                                    <MudStack Row="true" Spacing="2">
+                                        <MudText Typo="Typo.caption" Color="Color.Success">Earned: @stat.Earned</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Error">Used: @stat.Used</MudText>
+                                    </MudStack>
+                                </MudStack>
+                                <MudChip T="string" Color="@(stat.Balance >= 0 ? Color.Info : Color.Error)" Size="Size.Small" Variant="Variant.Filled">
+                                    <b>@stat.Balance h</b>
+                                </MudChip>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudStack>
             </MudCardContent>
         </MudCard>
     </MudItem>
@@ -124,35 +140,71 @@
                     <MudText Typo="Typo.h6">Team Attendance Matrix (Last 30 Days)</MudText>
                 </CardHeaderContent>
             </MudCardHeader>
-            <MudCardContent>
-                <MudTable Items="@_matrixRows" Dense="true" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm">
-                    <HeaderContent>
-                        <MudTh>Date</MudTh>
-                        @foreach (var empName in _allEmployeeNames)
+            <MudCardContent Class="pa-0">
+                @* Desktop View: Table *@
+                <div class="d-none d-sm-block">
+                    <MudTable Items="@_matrixRows" Dense="true" Hover="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Date</MudTh>
+                            @foreach (var empName in _allEmployeeNames)
+                            {
+                                <MudTh Style="text-align: center;">@empName</MudTh>
+                            }
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Date">@context.Date.ToString("MM/dd (ddd)")</MudTd>
+                            @foreach (var empName in _allEmployeeNames)
+                            {
+                                var status = context.EmployeeStatus.ContainsKey(empName) ? context.EmployeeStatus[empName] : null;
+                                <MudTd Style="text-align: center;">
+                                    @if (status != null)
+                                    {
+                                        <MudTooltip Text="@status.SubCategory">
+                                            <MudIcon Icon="@GetStatusIcon(status.SubCategory)" Color="@GetStatusColor(status.MainCategory)" Size="Size.Small" />
+                                        </MudTooltip>
+                                    }
+                                    else
+                                    {
+                                        <span style="opacity: 0.2">-</span>
+                                    }
+                                </MudTd>
+                            }
+                        </RowTemplate>
+                    </MudTable>
+                </div>
+
+                @* Mobile View: Timeline/Feed *@
+                <div class="d-block d-sm-none pa-4">
+                    <MudStack Spacing="3">
+                        @foreach (var row in _matrixRows)
                         {
-                            <MudTh Style="text-align: center;">@empName</MudTh>
+                            <MudPaper Elevation="0" Class="pa-3" Style="border: 1px solid var(--mud-palette-divider); border-radius: 8px;">
+                                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">@row.Date.ToString("MMMM dd (ddd)")</MudText>
+                                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+                                    @foreach (var empName in _allEmployeeNames)
+                                    {
+                                        var status = row.EmployeeStatus.ContainsKey(empName) ? row.EmployeeStatus[empName] : null;
+                                        @if (status != null)
+                                        {
+                                            <MudChip T="string" 
+                                                    Variant="Variant.Outlined" 
+                                                    Size="Size.Small" 
+                                                    Color="@GetStatusColor(status.MainCategory)" 
+                                                    Icon="@GetStatusIcon(status.SubCategory)"
+                                                    Label="true">
+                                                @empName: @status.SubCategory
+                                            </MudChip>
+                                        }
+                                    }
+                                    @if (!row.EmployeeStatus.Any())
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary italic">No activity recorded</MudText>
+                                    }
+                                </MudStack>
+                            </MudPaper>
                         }
-                    </HeaderContent>
-                    <RowTemplate>
-                        <MudTd DataLabel="Date">@context.Date.ToString("MM/dd (ddd)")</MudTd>
-                        @foreach (var empName in _allEmployeeNames)
-                        {
-                            var status = context.EmployeeStatus.ContainsKey(empName) ? context.EmployeeStatus[empName] : null;
-                            <MudTd Style="text-align: center;">
-                                @if (status != null)
-                                {
-                                    <MudTooltip Text="@status.SubCategory">
-                                        <MudIcon Icon="@GetStatusIcon(status.SubCategory)" Color="@GetStatusColor(status.MainCategory)" Size="Size.Small" />
-                                    </MudTooltip>
-                                }
-                                else
-                                {
-                                    <span style="opacity: 0.2">-</span>
-                                }
-                            </MudTd>
-                        }
-                    </RowTemplate>
-                </MudTable>
+                    </MudStack>
+                </div>
             </MudCardContent>
         </MudCard>
     </MudItem>
@@ -178,61 +230,106 @@
     private List<MatrixRow> _matrixRows = new();
     private List<CompTimeStat> _compTimeStats = new();
 
+    private List<Employee> _employees = new();
+    private int? _selectedEmployeeId;
+    private List<WorkLog> _allLogs = new();
+
     protected override async Task OnInitializedAsync()
     {
+        _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+        _allLogs = (await WorkLogService.GetWorkLogsAsync()).ToList();
+        await CalculateStats();
+    }
+
+    private async Task OnEmployeeFilterChanged(int? employeeId)
+    {
+        _selectedEmployeeId = employeeId;
+        await CalculateStats();
+    }
+
+    private async Task CalculateStats()
+    {
+        var filteredLogs = _selectedEmployeeId.HasValue 
+            ? _allLogs.Where(l => l.EmployeeId == _selectedEmployeeId.Value).ToList() 
+            : _allLogs;
+
         // 1. Main Categories
-        var mainStats = (await WorkLogService.GetMainCategoryStatsAsync()).ToList();
-        _mainCategoryData = mainStats.Select(s => (double)Convert.ToDouble(GetValue<object>(s, "count"))).ToArray();
-        _mainCategoryLabels = mainStats.Select(s => (string)(Convert.ToString(GetValue<object>(s, "maincategory")) ?? "Unknown")).ToArray();
+        var mainGroups = filteredLogs.GroupBy(l => l.MainCategory)
+            .Select(g => new { maincategory = g.Key, count = g.Count() })
+            .ToList();
+        _mainCategoryData = mainGroups.Select(s => (double)s.count).ToArray();
+        _mainCategoryLabels = mainGroups.Select(s => s.maincategory ?? "Unknown").ToArray();
 
         // 2. Sub Categories
-        var subStats = (await WorkLogService.GetSubCategoryStatsAsync()).ToList();
-        _subCategoryData = subStats.Select(s => (double)Convert.ToDouble(GetValue<object>(s, "count"))).ToArray();
-        _subCategoryLabels = subStats.Select(s => (string)(Convert.ToString(GetValue<object>(s, "category")) ?? "Unknown")).ToArray();
+        var subGroups = filteredLogs.GroupBy(l => l.SubCategory)
+            .Select(g => new { category = g.Key, count = g.Count() })
+            .ToList();
+        _subCategoryData = subGroups.Select(s => (double)s.count).ToArray();
+        _subCategoryLabels = subGroups.Select(s => s.category ?? "Unknown").ToArray();
         
         _subCategorySeries = new List<ChartSeries<double>>
         {
             new ChartSeries<double> { Name = "Entries", Data = _subCategoryData }
         };
 
-        // 3. Employee Stats
-        var employeeStats = (await WorkLogService.GetEmployeeStatsAsync()).ToList();
-        _employeeData = employeeStats.Select(s => (double)Convert.ToDouble(GetValue<object>(s, "count"))).ToArray();
-        _employeeLabels = employeeStats.Select(s => (string)(Convert.ToString(GetValue<object>(s, "name")) ?? "Unknown")).ToArray();
-        _allEmployeeNames = _employeeLabels.ToList();
+        // 3. Employee Stats (Distribution always shows all, but we highlight if filtered)
+        var empGroups = filteredLogs.GroupBy(l => l.Employee?.Name ?? "Unknown")
+            .Select(g => new { name = g.Key, count = g.Count() })
+            .ToList();
+        _employeeData = empGroups.Select(s => (double)s.count).ToArray();
+        _employeeLabels = empGroups.Select(s => s.name).ToArray();
+        
+        if (!_selectedEmployeeId.HasValue)
+        {
+            _allEmployeeNames = _employees.Select(e => e.Name).ToList();
+        }
+        else
+        {
+            _allEmployeeNames = _employees.Where(e => e.Id == _selectedEmployeeId).Select(e => e.Name).ToList();
+        }
 
         // 4. Comp Time Stats
-        var compStats = (await WorkLogService.GetCompTimeStatsAsync()).ToList();
-        _compTimeStats = compStats.Select(s => new CompTimeStat 
+        var allCompStats = (await WorkLogService.GetCompTimeStatsAsync()).ToList();
+        _compTimeStats = allCompStats.Select(s => new CompTimeStat 
         { 
             Name = (string)(Convert.ToString(GetValue<object>(s, "name")) ?? "Unknown"), 
             Earned = (decimal)Convert.ToDecimal(GetValue<object>(s, "earned")), 
             Used = (decimal)Convert.ToDecimal(GetValue<object>(s, "used")), 
-            Balance = (decimal)Convert.ToDecimal(GetValue<object>(s, "balance")) 
+            Balance = (decimal)Convert.ToDecimal(GetValue<object>(s, "balance")),
+            Id = (int)Convert.ToInt32(GetValue<object>(s, "id") ?? 0)
         }).ToList();
+
+        if (_selectedEmployeeId.HasValue)
+        {
+            _compTimeStats = _compTimeStats.Where(s => s.Id == _selectedEmployeeId.Value).ToList();
+        }
+
         _totalCompBalance = _compTimeStats.Sum(s => s.Balance);
 
         // 5. Matrix Pivot
-        var allLogs = (await WorkLogService.GetWorkLogsAsync()).ToList();
         var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        
-        _matrixRows = allLogs
+        _matrixRows = filteredLogs
             .Where(l => l.LogDate >= cutoff)
             .GroupBy(l => l.LogDate)
             .OrderByDescending(g => g.Key)
             .Select(g => new MatrixRow 
             { 
                 Date = g.Key ?? default,
-                EmployeeStatus = g.ToDictionary(l => l.Employee?.Name ?? "Unknown", l => l)
+                EmployeeStatus = g.GroupBy(l => l.Employee?.Name ?? "Unknown")
+                                  .ToDictionary(ge => ge.Key, ge => ge.First())
             })
             .ToList();
 
-        _totalLogs = (int)_mainCategoryData.Sum();
-        _totalEmployees = _employeeLabels.Length;
+        _totalLogs = filteredLogs.Count;
+        _totalEmployees = _selectedEmployeeId.HasValue ? 1 : _employees.Count;
         
-        if (allLogs.Any())
+        if (filteredLogs.Any())
         {
-            _lastUpdateDate = allLogs.Max(l => l.LogDate)?.ToString("MM/dd/yyyy") ?? "Never";
+            _lastUpdateDate = filteredLogs.Max(l => l.LogDate)?.ToString("MM/dd/yyyy") ?? "Never";
+        }
+        else
+        {
+            _lastUpdateDate = "No activity";
         }
     }
 
@@ -274,6 +371,7 @@
 
     public class CompTimeStat
     {
+        public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public decimal Earned { get; set; }
         public decimal Used { get; set; }

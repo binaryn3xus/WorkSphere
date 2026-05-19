@@ -8,7 +8,7 @@
 
 <MudText Typo="Typo.h4" GutterBottom="true">Team Schedule</MudText>
 
-<MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6" Color="Color.Primary">
+<MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Primary">
     @* --- CALENDAR TAB --- *@
     <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
         <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
@@ -322,11 +322,18 @@
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Edit Log", parameters, options);
         var result = await dialog.Result;
+        
         if (result != null && !result.Canceled)
         {
             await WorkLogService.UpdateWorkLogAsync((WorkLog)result.Data!);
             await LoadData();
             Snackbar.Add("Entry updated", Severity.Success);
+        }
+        else if (result != null && result.Canceled)
+        {
+            // If the dialog was closed (even by cancellation), reload data to catch any deletions 
+            // that happened inside the dialog's own delete workflow.
+            await LoadData();
         }
     }
 

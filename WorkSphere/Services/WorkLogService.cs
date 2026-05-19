@@ -49,8 +49,8 @@ public class WorkLogService
     public async Task AddIncidentAsync(Incident incident)
     {
         const string sql = @"
-            INSERT INTO Incidents (TicketNumber, Title, Description, StartedAt, EndedAt, IsClosed)
-            VALUES (@TicketNumber, @Title, @Description, @StartedAt, @EndedAt, @IsClosed)";
+            INSERT INTO Incidents (TicketNumber, Title, Details, StartedAt, EndedAt, IsClosed)
+            VALUES (@TicketNumber, @Title, @Details, @StartedAt, @EndedAt, @IsClosed)";
         using var connection = CreateConnection();
         await connection.ExecuteAsync(sql, incident);
     }
@@ -59,7 +59,7 @@ public class WorkLogService
     {
         const string sql = @"
             UPDATE Incidents 
-            SET TicketNumber = @TicketNumber, Title = @Title, Description = @Description, 
+            SET TicketNumber = @TicketNumber, Title = @Title, Details = @Details, 
                 StartedAt = @StartedAt, EndedAt = @EndedAt, IsClosed = @IsClosed 
             WHERE Id = @Id";
         using var connection = CreateConnection();
@@ -73,6 +73,19 @@ public class WorkLogService
         await connection.ExecuteAsync(sql, new { Id = id });
     }
     #endregion
+
+    public async Task<IEnumerable<IncidentViewModel>> GetIncidentStatsAsync()
+    {
+        const string sql = @"
+            SELECT i.Id, i.TicketNumber, i.Title, i.Details, i.StartedAt, i.EndedAt, i.IsClosed,
+                   COALESCE(SUM(l.Hours), 0) as TotalCompHours
+            FROM Incidents i
+            LEFT JOIN WorkLogs l ON i.Id = l.IncidentId AND l.EarnsCompTime = TRUE
+            GROUP BY i.Id, i.TicketNumber, i.Title, i.Details, i.StartedAt, i.EndedAt, i.IsClosed
+            ORDER BY i.StartedAt DESC";
+        using var connection = CreateConnection();
+        return await connection.QueryAsync<IncidentViewModel>(sql);
+    }
 
     #region WorkLogs
     public async Task<IEnumerable<WorkLog>> GetWorkLogsAsync()
@@ -223,6 +236,7 @@ public class WorkLogService
     {
         const string sql = @"
             SELECT 
+                e.Id,
                 e.Name, 
                 SUM(CASE WHEN l.EarnsCompTime = TRUE THEN l.Hours ELSE 0 END) as Earned,
                 SUM(CASE WHEN l.SubCategory = 'Comp Day' THEN l.Hours ELSE 0 END) as Used,
@@ -230,7 +244,7 @@ public class WorkLogService
                 SUM(CASE WHEN l.SubCategory = 'Comp Day' THEN l.Hours ELSE 0 END) as Balance
             FROM Employees e
             LEFT JOIN WorkLogs l ON e.Id = l.EmployeeId
-            GROUP BY e.Name
+            GROUP BY e.Id, e.Name
             ORDER BY Balance DESC";
         using var connection = CreateConnection();
         return await connection.QueryAsync(sql);

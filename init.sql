@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS Incidents (
     Id SERIAL PRIMARY KEY,
     TicketNumber VARCHAR(50),
     Title VARCHAR(200) NOT NULL,
-    Description TEXT,
+    Details TEXT,
     StartedAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     EndedAt TIMESTAMP WITH TIME ZONE,
     IsClosed BOOLEAN DEFAULT FALSE
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS WorkLogs (
     SubCategory VARCHAR(100) NOT NULL,
     Details TEXT,
     OriginalDetails TEXT,
-    IncidentId INT REFERENCES Incidents(Id),
+    IncidentId INT REFERENCES Incidents(Id) ON DELETE SET NULL,
     EarnsCompTime BOOLEAN DEFAULT FALSE,
     Hours DECIMAL(5,2) DEFAULT 0
 );

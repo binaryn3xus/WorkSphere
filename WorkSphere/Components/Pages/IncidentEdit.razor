@@ -1,0 +1,215 @@
+@page "/incidents/edit/{Id:int}"
+@using WorkSphere.Models
+@using WorkSphere.Services
+@using MudBlazor
+@inject WorkLogService WorkLogService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudBreadcrumbs Items="_items"></MudBreadcrumbs>
+    
+    @if (_incident == null)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+    }
+    else
+    {
+        <MudPaper Class="pa-4 mt-2">
+            <MudStack Spacing="4">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                    <MudText Typo="Typo.h5">Edit Incident: @_incident.TicketNumber</MudText>
+                    <MudChip T="string" Color="@(_incident.IsClosed ? Color.Success : Color.Warning)" Size="Size.Small">
+                        @(_incident.IsClosed ? "Closed" : "Open")
+                    </MudChip>
+                </MudStack>
+                
+                <MudTextField Label="Title" @bind-Value="_incident.Title" Variant="Variant.Outlined" Placeholder="Title" Required="true" />
+                
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField Label="Ticket Number" @bind-Value="_incident.TicketNumber" Variant="Variant.Outlined" Placeholder="e.g., INC-123456" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudStack Row="true">
+                            <MudDatePicker Label="Started At" @bind-Date="_startDate" Variant="Variant.Outlined" />
+                            <MudTimePicker Label="Time" @bind-Time="_startTime" Variant="Variant.Outlined" />
+                        </MudStack>
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudCheckBox @bind-Value="_incident.IsClosed" Label="Closed" Color="Color.Success" T="bool" />
+                    </MudItem>
+                </MudGrid>
+
+                @if (_incident.IsClosed)
+                {
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.h6">Closure & Comp Time</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudStack Row="true">
+                                <MudDatePicker Label="Ended At" @bind-Date="_endDate" Variant="Variant.Outlined" Clearable="true" />
+                                <MudTimePicker Label="Time" @bind-Time="_endTime" Variant="Variant.Outlined" Clearable="true" />
+                            </MudStack>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudPaper Class="pa-4 bg-light" Elevation="0" Style="background-color: var(--mud-palette-background-grey);">
+                                <MudStack>
+                                    <MudCheckBox @bind-Value="_earnsCompTime" Label="This incident earns Comp Time" Color="Color.Primary" />
+                                    @if (_earnsCompTime)
+                                    {
+                                        <MudNumericField Label="Comp Time Hours" @bind-Value="_compTimeHours" Min="0" Step="0.25m" Variant="Variant.Outlined" />
+                                        <MudSelect T="int" Label="Award to Employee" @bind-Value="_awardEmployeeId" Variant="Variant.Outlined">
+                                            @foreach (var emp in _employees)
+                                            {
+                                                <MudSelectItem Value="@emp.Id">@emp.Name</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    }
+                                </MudStack>
+                            </MudPaper>
+                        </MudItem>
+                    </MudGrid>
+                }
+
+                <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+                    <MudTabPanel Text="Write">
+                        <MudTextField T="string" Label="Details" @bind-Value="_incident.Details" 
+                                      Variant="Variant.Outlined" Lines="15" 
+                                      Placeholder="Leave a comment" />
+                    </MudTabPanel>
+                    <MudTabPanel Text="Preview">
+                        <div style="min-height: 300px;">
+                            @if (string.IsNullOrWhiteSpace(_incident.Details))
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Nothing to preview</MudText>
+                            }
+                            else
+                            {
+                                <MarkdownView Content="@_incident.Details" />
+                            }
+                        </div>
+                    </MudTabPanel>
+                </MudTabs>
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+                    <MudButton Variant="Variant.Outlined" OnClick="Cancel">Cancel</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="UpdateIncident">Update Incident</MudButton>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Incident? _incident;
+    private DateTime? _startDate;
+    private TimeSpan? _startTime;
+    private DateTime? _endDate;
+    private TimeSpan? _endTime;
+
+    private IEnumerable<Employee> _employees = new List<Employee>();
+    private bool _earnsCompTime;
+    private decimal _compTimeHours;
+    private int _awardEmployeeId;
+
+    private List<BreadcrumbItem> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = new List<BreadcrumbItem>
+        {
+            new BreadcrumbItem("Incidents", href: "/incidents"),
+            new BreadcrumbItem("Edit", href: null, disabled: true)
+        };
+
+        _employees = await WorkLogService.GetEmployeesAsync();
+        var incidents = await WorkLogService.GetIncidentsAsync();
+        _incident = incidents.FirstOrDefault(i => i.Id == Id);
+
+        if (_incident == null)
+        {
+            Snackbar.Add("Incident not found", Severity.Error);
+            NavigationManager.NavigateTo("/incidents");
+            return;
+        }
+
+        _startDate = _incident.StartedAt.Date;
+        _startTime = _incident.StartedAt.TimeOfDay;
+        _endDate = _incident.EndedAt?.Date ?? DateTime.Today;
+        _endTime = _incident.EndedAt?.TimeOfDay ?? DateTime.Now.TimeOfDay;
+        
+        _awardEmployeeId = _employees.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private async Task UpdateIncident()
+    {
+        if (_incident == null) return;
+
+        if (string.IsNullOrWhiteSpace(_incident.Title))
+        {
+            Snackbar.Add("Title is required", Severity.Error);
+            return;
+        }
+
+        if (_startDate.HasValue)
+        {
+            _incident.StartedAt = _startDate.Value.Date.Add(_startTime ?? TimeSpan.Zero);
+        }
+
+        if (_incident.IsClosed)
+        {
+            if (_endDate.HasValue)
+            {
+                _incident.EndedAt = _endDate.Value.Date.Add(_endTime ?? TimeSpan.Zero);
+            }
+            
+            if (_earnsCompTime)
+            {
+                if (_awardEmployeeId == 0)
+                {
+                    Snackbar.Add("Please select an employee to award Comp Time to.", Severity.Warning);
+                    return;
+                }
+
+                if (_compTimeHours <= 0)
+                {
+                    Snackbar.Add("Comp Time hours must be greater than zero.", Severity.Warning);
+                    return;
+                }
+
+                // Create a WorkLog entry for the comp time
+                var log = new WorkLog
+                {
+                    LogDate = DateOnly.FromDateTime(_endDate ?? DateTime.Today),
+                    LogTime = TimeOnly.FromTimeSpan(_endTime ?? DateTime.Now.TimeOfDay),
+                    EmployeeId = _awardEmployeeId,
+                    MainCategory = "Work",
+                    SubCategory = "Incident Response",
+                    Details = $"Comp Time earned for Incident: {_incident.TicketNumber} - {_incident.Title}",
+                    IncidentId = _incident.Id,
+                    EarnsCompTime = true,
+                    Hours = _compTimeHours
+                };
+
+                await WorkLogService.AddWorkLogAsync(log);
+                Snackbar.Add($"Comp Time log created for {log.Hours} hours", Severity.Info);
+            }
+        }
+        else
+        {
+            _incident.EndedAt = null;
+        }
+
+        await WorkLogService.UpdateIncidentAsync(_incident);
+        Snackbar.Add("Incident updated successfully", Severity.Success);
+        NavigationManager.NavigateTo("/incidents");
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/incidents");
+    }
+}

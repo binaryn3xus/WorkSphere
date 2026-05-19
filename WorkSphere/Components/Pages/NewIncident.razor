@@ -1,0 +1,91 @@
+@page "/incidents/new"
+@using WorkSphere.Models
+@using WorkSphere.Services
+@using MudBlazor
+@inject WorkLogService WorkLogService
+@inject NavigationManager NavigationManager
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudBreadcrumbs Items="_items"></MudBreadcrumbs>
+    
+    <MudPaper Class="pa-4 mt-2">
+        <MudStack Spacing="4">
+            <MudText Typo="Typo.h5">Create New Incident</MudText>
+            
+            <MudTextField Label="Title" @bind-Value="_incident.Title" Variant="Variant.Outlined" Placeholder="Title" Required="true" />
+            
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField Label="Ticket Number" @bind-Value="_incident.TicketNumber" Variant="Variant.Outlined" Placeholder="e.g., INC-123456" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudStack Row="true">
+                        <MudDatePicker Label="Started At" @bind-Date="_startDate" Variant="Variant.Outlined" />
+                        <MudTimePicker Label="Time" @bind-Time="_startTime" Variant="Variant.Outlined" />
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+
+            <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+                <MudTabPanel Text="Write">
+                    <MudTextField T="string" Label="Details" @bind-Value="_incident.Details" 
+                                  Variant="Variant.Outlined" Lines="15" 
+                                  Placeholder="Leave a comment" />
+                </MudTabPanel>
+                <MudTabPanel Text="Preview">
+                    <div style="min-height: 300px;">
+                        @if (string.IsNullOrWhiteSpace(_incident.Details))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Nothing to preview</MudText>
+                        }
+                        else
+                        {
+                            <MarkdownView Content="@_incident.Details" />
+                        }
+                    </div>
+                </MudTabPanel>
+            </MudTabs>
+
+            <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-4">
+                <MudButton Variant="Variant.Outlined" OnClick="Cancel">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveIncident">Create Incident</MudButton>
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private Incident _incident = new() { StartedAt = DateTime.Now };
+    private DateTime? _startDate = DateTime.Today;
+    private TimeSpan? _startTime = DateTime.Now.TimeOfDay;
+
+    private List<BreadcrumbItem> _items = new List<BreadcrumbItem>
+    {
+        new BreadcrumbItem("Incidents", href: "/incidents"),
+        new BreadcrumbItem("New", href: null, disabled: true)
+    };
+
+    private async Task SaveIncident()
+    {
+        if (string.IsNullOrWhiteSpace(_incident.Title))
+        {
+            Snackbar.Add("Title is required", Severity.Error);
+            return;
+        }
+
+        if (_startDate.HasValue)
+        {
+            _incident.StartedAt = _startDate.Value.Date.Add(_startTime ?? TimeSpan.Zero);
+        }
+
+        await WorkLogService.AddIncidentAsync(_incident);
+        Snackbar.Add("Incident created successfully", Severity.Success);
+        NavigationManager.NavigateTo("/incidents");
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/incidents");
+    }
+}
