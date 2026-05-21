@@ -26,10 +26,10 @@
 
             <MudGrid>
                 <MudItem xs="6">
-                    <MudDatePicker Label="Date" @bind-Date="DateProxy" />
+                    <MudDatePicker Label="Date" @bind-Date="DateProxy" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="6">
-                    <MudTimePicker Label="Time" @bind-Time="TimeProxy" />
+                    <MudTimePicker Label="Time" @bind-Time="TimeProxy" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSelect T="int" Label="Employee" @bind-Value="_log.EmployeeId">
@@ -57,20 +57,24 @@
                 </MudItem>
                 
                 <MudItem xs="12">
-                    <MudSelect T="int?" Label="Linked Incident (Earns Comp Time)" @bind-Value="_log.IncidentId" Clearable="true">
-                        @foreach (var inc in _incidents)
-                        {
-                            <MudSelectItem Value="@((int?)inc.Id)">@inc.ToString()</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <MudCheckBox T="bool" Value="_linkToIncident" ValueChanged="OnLinkToIncidentChanged" Label="Link to Incident" Color="Color.Primary" />
                 </MudItem>
 
-                <MudItem xs="6">
-                    <MudCheckBox @bind-Value="_log.EarnsCompTime" Label="Earns Comp Time" Color="Color.Primary" />
-                </MudItem>
-                <MudItem xs="6">
-                    <MudNumericField Label="Hours" @bind-Value="_log.Hours" Min="0" Step="0.25m" />
-                </MudItem>
+                @if (_linkToIncident)
+                {
+                    <MudItem xs="12">
+                        <MudSelect T="int?" Label="Select Incident" @bind-Value="_log.IncidentId" Clearable="true">
+                            @foreach (var inc in _incidents)
+                            {
+                                <MudSelectItem Value="@((int?)inc.Id)">@inc.ToString()</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudNumericField Label="Comp Time Hours" @bind-Value="_log.Hours" Min="0" Step="0.25m" HelperText="Leave at 0 if no comp time was earned" />
+                    </MudItem>
+                }
 
                 <MudItem xs="12">
                     @* Details with Hot Buttons *@
@@ -110,6 +114,7 @@
     private WorkLog _log = new();
     private IEnumerable<Employee> _employees = new List<Employee>();
     private IEnumerable<Incident> _incidents = new List<Incident>();
+    private bool _linkToIncident;
 
     private Dictionary<string, List<string>> _categoryMap = new()
     {
@@ -141,6 +146,18 @@
             EarnsCompTime = Log.EarnsCompTime,
             Hours = Log.Hours
         };
+
+        _linkToIncident = _log.IncidentId.HasValue;
+    }
+
+    private void OnLinkToIncidentChanged(bool val)
+    {
+        _linkToIncident = val;
+        if (!val)
+        {
+            _log.IncidentId = null;
+            _log.EarnsCompTime = false;
+        }
     }
 
     private void SetQuickAction(string main, string sub, bool earnsComp = false)
@@ -149,10 +166,15 @@
         _log.SubCategory = sub;
         _log.EarnsCompTime = earnsComp;
         
+        if (earnsComp)
+        {
+            _linkToIncident = true;
+        }
+        
         // Auto-set standard details for common actions
         if (string.IsNullOrWhiteSpace(_log.Details))
         {
-            if (sub == "Work From Home") _log.Details = "Work From Home (Standard)";
+            if (sub == "Work From Home") _log.Details = "Work From Home";
             if (sub == "In-Office") _log.Details = "Arrive in Office";
             if (sub == "Incident Response") _log.Details = "Responding to Incident";
             if (sub == "Comp Day") _log.Details = "Using Comp Time";
@@ -187,7 +209,13 @@
         set => _log.LogTime = value.HasValue ? TimeOnly.FromTimeSpan(value.Value) : null;
     }
 
-    private void Submit() => MudDialog.Close(DialogResult.Ok(_log));
+    private void Submit() 
+    {
+        // Update EarnsCompTime based on Hours before submitting
+        _log.EarnsCompTime = _log.Hours > 0;
+        MudDialog.Close(DialogResult.Ok(_log));
+    }
+
     private void Cancel() => MudDialog.Cancel();
 
     private async Task DeleteLog()

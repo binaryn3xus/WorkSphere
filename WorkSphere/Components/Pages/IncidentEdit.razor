@@ -32,8 +32,8 @@
                     </MudItem>
                     <MudItem xs="12" sm="4">
                         <MudStack Row="true">
-                            <MudDatePicker Label="Started At" @bind-Date="_startDate" Variant="Variant.Outlined" />
-                            <MudTimePicker Label="Time" @bind-Time="_startTime" Variant="Variant.Outlined" />
+                            <MudDatePicker Label="Started At" @bind-Date="_startDate" Variant="Variant.Outlined" PickerVariant="PickerVariant.Dialog" />
+                            <MudTimePicker Label="Time" @bind-Time="_startTime" Variant="Variant.Outlined" PickerVariant="PickerVariant.Dialog" />
                         </MudStack>
                     </MudItem>
                     <MudItem xs="12" sm="4">
@@ -48,8 +48,8 @@
                     <MudGrid>
                         <MudItem xs="12" sm="6">
                             <MudStack Row="true">
-                                <MudDatePicker Label="Ended At" @bind-Date="_endDate" Variant="Variant.Outlined" Clearable="true" />
-                                <MudTimePicker Label="Time" @bind-Time="_endTime" Variant="Variant.Outlined" Clearable="true" />
+                                <MudDatePicker Label="Ended At" @bind-Date="_endDate" Variant="Variant.Outlined" Clearable="true" PickerVariant="PickerVariant.Dialog" />
+                                <MudTimePicker Label="Time" @bind-Time="_endTime" Variant="Variant.Outlined" Clearable="true" PickerVariant="PickerVariant.Dialog" />
                             </MudStack>
                         </MudItem>
                         <MudItem xs="12" sm="6">
