@@ -1,11 +1,11 @@
 # WorkSphere
 
-WorkSphere is a comprehensive work logging and employee management system built with **.NET 9.0** and **Blazor**. It features a modern, interactive UI and a robust backend designed for tracking daily activities, managing employee records, and generating insightful reports.
+WorkSphere is a comprehensive work logging and employee management system built with **.NET 10.0** and **Blazor**. It features a modern, interactive UI and a robust backend designed for tracking daily activities, managing employee records, and generating insightful reports.
 
 ## Project Overview
 
 ### Tech Stack
-- **Framework:** .NET 9.0 Blazor Web App (Interactive Server)
+- **Framework:** .NET 10.0 Blazor Web App (Interactive Server)
 - **UI Components:** [MudBlazor](https://mudblazor.com/)
 - **Database:** PostgreSQL
 - **Data Access:** [Dapper](https://github.com/DapperLib/Dapper) (Lightweight ORM)
@@ -28,7 +28,7 @@ WorkSphere is a comprehensive work logging and employee management system built 
 ## Building and Running
 
 ### Prerequisites
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [PostgreSQL](https://www.postgresql.org/) database
 
 ### Configuration
