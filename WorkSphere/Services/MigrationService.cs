@@ -142,6 +142,10 @@ public class MigrationService
         {
             return ("Work", "In-Office", details);
         }
+        if (details.Contains("Incident", StringComparison.OrdinalIgnoreCase) || details.Contains("Response", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("Work", "Incident Response", details);
+        }
 
         return ("Other", "Other", details);
     }
