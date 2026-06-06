@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS WorkLogs (
     OriginalDetails TEXT,
     IncidentId INT REFERENCES Incidents(Id) ON DELETE SET NULL,
     EarnsCompTime BOOLEAN DEFAULT FALSE,
+    UsesCompTime BOOLEAN DEFAULT FALSE,
     Hours DECIMAL(5,2) DEFAULT 0
 );
 

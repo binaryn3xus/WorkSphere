@@ -16,8 +16,8 @@
             <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Business" OnClick="@(() => SetQuickAction("Work", "In-Office"))">Office</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Home" OnClick="@(() => SetQuickAction("Work", "Work From Home"))">WFH</MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.ErrorOutline" OnClick="@(() => SetQuickAction("Work", "Incident Response", true))">GET Comp</MudButton>
-                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.AlarmOff" OnClick="@(() => SetQuickAction("Leave", "Comp Day"))">USE Comp</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.ErrorOutline" OnClick="@(() => SetQuickAction("Work", "Incident Response", earnsComp: true))">GET Comp</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.AlarmOff" OnClick="@(() => SetQuickAction("Leave", "Comp Day", usesComp: true))">USE Comp</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.BeachAccess" OnClick="@(() => SetQuickAction("Leave", "PTO"))">PTO</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.LocalHospital" OnClick="@(() => SetQuickAction("Leave", "Sick Day"))">Sick</MudButton>
             </MudStack>
@@ -29,7 +29,7 @@
                     <MudDatePicker Label="Date" @bind-Date="DateProxy" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="6">
-                    <MudTimePicker Label="Time" @bind-Time="TimeProxy" PickerVariant="PickerVariant.Dialog" />
+                    <MudTimePicker Label="Time" @bind-Time="TimeProxy" PickerVariant="PickerVariant.Dialog" MinuteSelectionStep="5" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSelect T="int" Label="Employee" @bind-Value="_log.EmployeeId">
@@ -57,6 +57,23 @@
                 </MudItem>
                 
                 <MudItem xs="12">
+                    <MudPaper Elevation="0" Class="pa-4 mud-background-gray border-all" Style="border: 1px dashed var(--mud-palette-divider);">
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.subtitle2">Comp Time Settings</MudText>
+                            <MudStack Row="true">
+                                <MudCheckBox T="bool" @bind-Value="_log.EarnsCompTime" Label="Earns Comp Time" Color="Color.Warning" />
+                                <MudCheckBox T="bool" @bind-Value="_log.UsesCompTime" Label="Uses Comp Time" Color="Color.Error" />
+                            </MudStack>
+                            
+                            @if (_log.EarnsCompTime || _log.UsesCompTime)
+                            {
+                                <MudNumericField Label="@(_log.EarnsCompTime ? "Hours Earned" : "Hours Used")" @bind-Value="_log.Hours" Min="0" Step="0.25m" Variant="Variant.Outlined" />
+                            }
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12">
                     <MudCheckBox T="bool" Value="_linkToIncident" ValueChanged="OnLinkToIncidentChanged" Label="Link to Incident" Color="Color.Primary" />
                 </MudItem>
 
@@ -69,10 +86,6 @@
                                 <MudSelectItem Value="@((int?)inc.Id)">@inc.ToString()</MudSelectItem>
                             }
                         </MudSelect>
-                    </MudItem>
-
-                    <MudItem xs="12">
-                        <MudNumericField Label="Comp Time Hours" @bind-Value="_log.Hours" Min="0" Step="0.25m" HelperText="Leave at 0 if no comp time was earned" />
                     </MudItem>
                 }
 
@@ -144,6 +157,7 @@
             OriginalDetails = Log.OriginalDetails,
             IncidentId = Log.IncidentId,
             EarnsCompTime = Log.EarnsCompTime,
+            UsesCompTime = Log.UsesCompTime,
             Hours = Log.Hours
         };
 
@@ -156,15 +170,15 @@
         if (!val)
         {
             _log.IncidentId = null;
-            _log.EarnsCompTime = false;
         }
     }
 
-    private void SetQuickAction(string main, string sub, bool earnsComp = false)
+    private void SetQuickAction(string main, string sub, bool earnsComp = false, bool usesComp = false)
     {
         _log.MainCategory = main;
         _log.SubCategory = sub;
         _log.EarnsCompTime = earnsComp;
+        _log.UsesCompTime = usesComp;
         
         if (earnsComp)
         {
@@ -211,8 +225,6 @@
 
     private void Submit() 
     {
-        // Update EarnsCompTime based on Hours before submitting
-        _log.EarnsCompTime = _log.Hours > 0;
         MudDialog.Close(DialogResult.Ok(_log));
     }
 

@@ -26,27 +26,37 @@ public class MigrationService
         var employees = await _workLogService.GetEmployeesAsync();
         var employeeMap = employees.ToDictionary(e => e.Initials, e => e.Id);
 
-        // Fetch existing logs to prevent duplicates - use a HashSet for O(1) lookup
         var existingLogs = await _workLogService.GetWorkLogsAsync();
         var logKeys = existingLogs
-            .Select(l => $"{l.LogDate:yyyyMMdd}_{l.EmployeeId}_{l.OriginalDetails}")
+            .Select(l => GetLogKey(l))
             .ToHashSet();
 
         var files = Directory.GetFiles(_logsPath, "*.md");
         foreach (var file in files)
         {
-            await ProcessFileAsync(file, employeeMap, logKeys);
+            var parsedLogs = await ParseMarkdownFileAsync(file, employeeMap);
+            foreach (var log in parsedLogs)
+            {
+                var key = GetLogKey(log);
+                if (!logKeys.Contains(key))
+                {
+                    await _workLogService.AddWorkLogAsync(log);
+                    logKeys.Add(key);
+                }
+            }
         }
     }
 
-    private async Task ProcessFileAsync(string filePath, Dictionary<string, int> employeeMap, HashSet<string> logKeys)
+    public async Task<List<WorkLog>> ParseMarkdownFileAsync(string filePath, Dictionary<string, int> employeeMap)
     {
+        var logs = new List<WorkLog>();
+        if (!File.Exists(filePath)) return logs;
+
         var content = await File.ReadAllTextAsync(filePath);
         var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
 
         foreach (var line in lines)
         {
-            // Match table rows: | 05/01/26 | 00:00 | J | ... |
             if (line.StartsWith("|") && !line.Contains("---") && !line.ToLower().Contains("day") && !line.ToLower().Contains("time"))
             {
                 var parts = line.Split('|', StringSplitOptions.TrimEntries);
@@ -57,7 +67,6 @@ public class MigrationService
                     var initials = parts[3];
                     var detailsStr = parts[4];
 
-                    // Skip empty or purely placeholder rows
                     if (string.IsNullOrWhiteSpace(detailsStr) || detailsStr.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
                         continue;
 
@@ -73,31 +82,25 @@ public class MigrationService
 
                         if (employeeMap.TryGetValue(initials, out var employeeId))
                         {
-                            // Deduplication check
-                            var key = $"{date:yyyyMMdd}_{employeeId}_{detailsStr}";
-
-                            if (!logKeys.Contains(key))
+                            logs.Add(new WorkLog
                             {
-                                var log = new WorkLog
-                                {
-                                    LogDate = date,
-                                    LogTime = time,
-                                    EmployeeId = employeeId,
-                                    MainCategory = main,
-                                    SubCategory = sub,
-                                    Details = details,
-                                    OriginalDetails = detailsStr
-                                };
-
-                                await _workLogService.AddWorkLogAsync(log);
-                                logKeys.Add(key); // Mark as processed
-                            }
+                                LogDate = date,
+                                LogTime = time,
+                                EmployeeId = employeeId,
+                                MainCategory = main,
+                                SubCategory = sub,
+                                Details = details,
+                                OriginalDetails = detailsStr
+                            });
                         }
                     }
                 }
             }
         }
+        return logs;
     }
+
+    private string GetLogKey(WorkLog l) => $"{l.LogDate:yyyyMMdd}_{l.EmployeeId}_{l.OriginalDetails}";
 
     private (string Main, string Sub, string Details) Categorize(string rawDetails)
     {

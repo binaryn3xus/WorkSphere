@@ -254,30 +254,36 @@
             : _allLogs;
 
         // 1. Main Categories
-        var mainGroups = filteredLogs.GroupBy(l => l.MainCategory)
-            .Select(g => new { maincategory = g.Key, count = g.Count() })
-            .ToList();
-        _mainCategoryData = mainGroups.Select(s => (double)s.count).ToArray();
-        _mainCategoryLabels = mainGroups.Select(s => s.maincategory ?? "Unknown").ToArray();
+        var mainGroups = await WorkLogService.GetMainCategoryStatsAsync();
+        if (_selectedEmployeeId.HasValue)
+        {
+             mainGroups = filteredLogs.GroupBy(l => l.MainCategory)
+                .Select(g => new CategoryStatDto(g.Key ?? "Unknown", g.Count()))
+                .ToList();
+        }
+        _mainCategoryData = mainGroups.Select(s => (double)s.Count).ToArray();
+        _mainCategoryLabels = mainGroups.Select(s => s.Name).ToArray();
 
         // 2. Sub Categories
-        var subGroups = filteredLogs.GroupBy(l => l.SubCategory)
-            .Select(g => new { category = g.Key, count = g.Count() })
-            .ToList();
-        _subCategoryData = subGroups.Select(s => (double)s.count).ToArray();
-        _subCategoryLabels = subGroups.Select(s => s.category ?? "Unknown").ToArray();
+        var subGroups = await WorkLogService.GetSubCategoryStatsAsync();
+        if (_selectedEmployeeId.HasValue)
+        {
+            subGroups = filteredLogs.GroupBy(l => l.SubCategory)
+                .Select(g => new CategoryStatDto(g.Key ?? "Unknown", g.Count()))
+                .ToList();
+        }
+        _subCategoryData = subGroups.Select(s => (double)s.Count).ToArray();
+        _subCategoryLabels = subGroups.Select(s => s.Name).ToArray();
         
         _subCategorySeries = new List<ChartSeries<double>>
         {
             new ChartSeries<double> { Name = "Entries", Data = _subCategoryData }
         };
 
-        // 3. Employee Stats (Distribution always shows all, but we highlight if filtered)
-        var empGroups = filteredLogs.GroupBy(l => l.Employee?.Name ?? "Unknown")
-            .Select(g => new { name = g.Key, count = g.Count() })
-            .ToList();
-        _employeeData = empGroups.Select(s => (double)s.count).ToArray();
-        _employeeLabels = empGroups.Select(s => s.name).ToArray();
+        // 3. Employee Stats
+        var empGroups = await WorkLogService.GetEmployeeStatsAsync();
+        _employeeData = empGroups.Select(s => (double)s.Count).ToArray();
+        _employeeLabels = empGroups.Select(s => s.Name).ToArray();
         
         if (!_selectedEmployeeId.HasValue)
         {
@@ -289,14 +295,14 @@
         }
 
         // 4. Comp Time Stats
-        var allCompStats = (await WorkLogService.GetCompTimeStatsAsync()).ToList();
+        var allCompStats = await WorkLogService.GetCompTimeStatsAsync();
         _compTimeStats = allCompStats.Select(s => new CompTimeStat 
         { 
-            Name = (string)(Convert.ToString(GetValue<object>(s, "name")) ?? "Unknown"), 
-            Earned = (decimal)Convert.ToDecimal(GetValue<object>(s, "earned")), 
-            Used = (decimal)Convert.ToDecimal(GetValue<object>(s, "used")), 
-            Balance = (decimal)Convert.ToDecimal(GetValue<object>(s, "balance")),
-            Id = (int)Convert.ToInt32(GetValue<object>(s, "id") ?? 0)
+            Name = s.Name, 
+            Earned = s.Earned, 
+            Used = s.Used, 
+            Balance = s.Balance,
+            Id = s.Id
         }).ToList();
 
         if (_selectedEmployeeId.HasValue)
@@ -354,14 +360,6 @@
         "Leave" => Color.Error,
         _ => Color.Default
     };
-
-    private T? GetValue<T>(dynamic obj, string propertyName)
-    {
-        var dict = (IDictionary<string, object>)obj;
-        var key = dict.Keys.FirstOrDefault(k => k.Equals(propertyName, StringComparison.OrdinalIgnoreCase));
-        if (key == null) return default;
-        return (T)dict[key];
-    }
 
     public class MatrixRow
     {

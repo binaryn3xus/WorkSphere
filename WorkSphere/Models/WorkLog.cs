@@ -12,6 +12,8 @@ public class WorkLog
     public string? Details { get; set; }
     public string? OriginalDetails { get; set; }
     public int? IncidentId { get; set; }
+    public Incident? Incident { get; set; }
     public bool EarnsCompTime { get; set; }
+    public bool UsesCompTime { get; set; }
     public decimal Hours { get; set; }
 }

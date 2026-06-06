@@ -114,8 +114,8 @@ public class WorkLogService
     {
         _logger.LogInformation("Adding work log for employee {EmployeeId}: {MainCategory}/{SubCategory}", log.EmployeeId, log.MainCategory, log.SubCategory);
         const string sql = @"
-            INSERT INTO WorkLogs (LogDate, LogTime, EmployeeId, MainCategory, SubCategory, Details, OriginalDetails, IncidentId, EarnsCompTime, Hours)
-            VALUES (@LogDate, @LogTime, @EmployeeId, @MainCategory, @SubCategory, @Details, @OriginalDetails, @IncidentId, @EarnsCompTime, @Hours)";
+            INSERT INTO WorkLogs (LogDate, LogTime, EmployeeId, MainCategory, SubCategory, Details, OriginalDetails, IncidentId, EarnsCompTime, UsesCompTime, Hours)
+            VALUES (@LogDate, @LogTime, @EmployeeId, @MainCategory, @SubCategory, @Details, @OriginalDetails, @IncidentId, @EarnsCompTime, @UsesCompTime, @Hours)";
         
         using var connection = CreateConnection();
         await connection.ExecuteAsync(sql, log);
@@ -129,7 +129,8 @@ public class WorkLogService
             SET LogDate = @LogDate, LogTime = @LogTime, EmployeeId = @EmployeeId, 
                 MainCategory = @MainCategory, SubCategory = @SubCategory, 
                 Details = @Details, OriginalDetails = @OriginalDetails,
-                IncidentId = @IncidentId, EarnsCompTime = @EarnsCompTime, Hours = @Hours
+                IncidentId = @IncidentId, EarnsCompTime = @EarnsCompTime, 
+                UsesCompTime = @UsesCompTime, Hours = @Hours
             WHERE Id = @Id";
         
         using var connection = CreateConnection();
@@ -144,50 +145,50 @@ public class WorkLogService
         await connection.ExecuteAsync(sql, new { Id = id });
     }
 
-    public async Task<IEnumerable<dynamic>> GetMainCategoryStatsAsync()
+    public async Task<IEnumerable<CategoryStatDto>> GetMainCategoryStatsAsync()
     {
         const string sql = @"
-            SELECT MainCategory, COUNT(*) as Count 
+            SELECT MainCategory as Name, CAST(COUNT(*) AS INT) as Count 
             FROM WorkLogs 
             GROUP BY MainCategory 
             ORDER BY Count DESC";
         using var connection = CreateConnection();
-        return await connection.QueryAsync(sql);
+        return await connection.QueryAsync<CategoryStatDto>(sql);
     }
 
-    public async Task<IEnumerable<dynamic>> GetSubCategoryStatsAsync()
+    public async Task<IEnumerable<CategoryStatDto>> GetSubCategoryStatsAsync()
     {
         const string sql = @"
-            SELECT SubCategory as Category, COUNT(*) as Count 
+            SELECT SubCategory as Name, CAST(COUNT(*) AS INT) as Count 
             FROM WorkLogs 
             GROUP BY SubCategory 
             ORDER BY Count DESC";
         using var connection = CreateConnection();
-        return await connection.QueryAsync(sql);
+        return await connection.QueryAsync<CategoryStatDto>(sql);
     }
 
-    public async Task<IEnumerable<dynamic>> GetEmployeeStatsAsync()
+    public async Task<IEnumerable<EmployeeStatDto>> GetEmployeeStatsAsync()
     {
         const string sql = @"
-            SELECT e.Name, COUNT(l.Id) as Count 
+            SELECT e.Name, CAST(COUNT(l.Id) AS INT) as Count 
             FROM Employees e
             LEFT JOIN WorkLogs l ON e.Id = l.EmployeeId
             GROUP BY e.Name
             ORDER BY Count DESC";
         using var connection = CreateConnection();
-        return await connection.QueryAsync(sql);
+        return await connection.QueryAsync<EmployeeStatDto>(sql);
     }
 
-    public async Task<IEnumerable<dynamic>> GetDailyActivityAsync()
+    public async Task<IEnumerable<DailyActivityDto>> GetDailyActivityAsync()
     {
         const string sql = @"
-            SELECT LogDate as Date, COUNT(*) as Count 
+            SELECT LogDate as Date, CAST(COUNT(*) AS INT) as Count 
             FROM WorkLogs 
             WHERE LogDate > CURRENT_DATE - INTERVAL '30 days'
             GROUP BY LogDate 
             ORDER BY LogDate";
         using var connection = CreateConnection();
-        return await connection.QueryAsync(sql);
+        return await connection.QueryAsync<DailyActivityDto>(sql);
     }
 
     public async Task<IEnumerable<WorkLog>> GetTodaysStatusAsync()
@@ -242,22 +243,27 @@ public class WorkLogService
         }, new { Count = count });
     }
 
-    public async Task<IEnumerable<dynamic>> GetCompTimeStatsAsync()
+    public async Task<IEnumerable<CompTimeBalanceDto>> GetCompTimeStatsAsync()
     {
         const string sql = @"
             SELECT 
                 e.Id,
                 e.Name, 
                 SUM(CASE WHEN l.EarnsCompTime = TRUE THEN l.Hours ELSE 0 END) as Earned,
-                SUM(CASE WHEN l.SubCategory = 'Comp Day' THEN l.Hours ELSE 0 END) as Used,
+                SUM(CASE WHEN l.UsesCompTime = TRUE THEN l.Hours ELSE 0 END) as Used,
                 SUM(CASE WHEN l.EarnsCompTime = TRUE THEN l.Hours ELSE 0 END) - 
-                SUM(CASE WHEN l.SubCategory = 'Comp Day' THEN l.Hours ELSE 0 END) as Balance
+                SUM(CASE WHEN l.UsesCompTime = TRUE THEN l.Hours ELSE 0 END) as Balance
             FROM Employees e
             LEFT JOIN WorkLogs l ON e.Id = l.EmployeeId
             GROUP BY e.Id, e.Name
             ORDER BY Balance DESC";
         using var connection = CreateConnection();
-        return await connection.QueryAsync(sql);
+        return await connection.QueryAsync<CompTimeBalanceDto>(sql);
     }
     #endregion
 }
+
+public record CompTimeBalanceDto(int Id, string Name, decimal Earned, decimal Used, decimal Balance);
+public record CategoryStatDto(string Name, int Count);
+public record EmployeeStatDto(string Name, int Count);
+public record DailyActivityDto(DateOnly Date, int Count);

@@ -16,13 +16,13 @@
                     <MudDatePicker Label="Start Date" @bind-Date="StartDateProxy" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="6">
-                    <MudTimePicker Label="Start Time" @bind-Time="StartTimeProxy" PickerVariant="PickerVariant.Dialog" />
+                    <MudTimePicker Label="Start Time" @bind-Time="StartTimeProxy" PickerVariant="PickerVariant.Dialog" MinuteSelectionStep="5" />
                 </MudItem>
                 <MudItem xs="6">
                     <MudDatePicker Label="End Date" @bind-Date="EndDateProxy" Clearable="true" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="6">
-                    <MudTimePicker Label="End Time" @bind-Time="EndTimeProxy" Clearable="true" PickerVariant="PickerVariant.Dialog" />
+                    <MudTimePicker Label="End Time" @bind-Time="EndTimeProxy" Clearable="true" PickerVariant="PickerVariant.Dialog" MinuteSelectionStep="5" />
                 </MudItem>
             </MudGrid>
 

@@ -1,10 +1,15 @@
 @page "/schedule"
 @using WorkSphere.Models
 @using WorkSphere.Services
+@using System.Globalization
+@using System.IO
+@using Microsoft.AspNetCore.Hosting
 @inject WorkLogService WorkLogService
 @inject MigrationService MigrationService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IConfiguration Configuration
+@inject IWebHostEnvironment Env
 
 <MudText Typo="Typo.h4" GutterBottom="true">Team Schedule</MudText>
 
@@ -104,6 +109,126 @@
             <PagerContent>
                 <MudTablePager />
             </PagerContent>
+        </MudTable>
+    </MudTabPanel>
+
+    @* --- AUDIT TAB --- *@
+    <MudTabPanel Text="Audit" Icon="@Icons.Material.Filled.FactCheck">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudSelect T="int" Label="Year" Value="@_auditYear" ValueChanged="OnAuditYearChanged" Dense="true" Style="max-width: 120px;">
+                @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
+                {
+                    <MudSelectItem Value="@y" />
+                }
+            </MudSelect>
+            <MudSelect T="int" Label="Month" Value="@_auditMonth" ValueChanged="OnAuditMonthChanged" Dense="true" Style="max-width: 150px;">
+                <MudSelectItem Value="0">All</MudSelectItem>
+                <MudSelectItem Value="1">January</MudSelectItem>
+                <MudSelectItem Value="2">February</MudSelectItem>
+                <MudSelectItem Value="3">March</MudSelectItem>
+                <MudSelectItem Value="4">April</MudSelectItem>
+                <MudSelectItem Value="5">May</MudSelectItem>
+                <MudSelectItem Value="6">June</MudSelectItem>
+                <MudSelectItem Value="7">July</MudSelectItem>
+                <MudSelectItem Value="8">August</MudSelectItem>
+                <MudSelectItem Value="9">September</MudSelectItem>
+                <MudSelectItem Value="10">October</MudSelectItem>
+                <MudSelectItem Value="11">November</MudSelectItem>
+                <MudSelectItem Value="12">December</MudSelectItem>
+            </MudSelect>
+            <MudSelect T="string" Label="Filter Status" @bind-Value="_auditFilter" Dense="true" Style="max-width: 180px;" Class="ml-4">
+                <MudSelectItem Value="@("All")">Show All</MudSelectItem>
+                <MudSelectItem Value="@("Missing")">Missing in DB</MudSelectItem>
+                <MudSelectItem Value="@("Extra")">DB Only (Extra)</MudSelectItem>
+                <MudSelectItem Value="@("Mismatch")">Mismatches</MudSelectItem>
+            </MudSelect>
+            <MudSpacer />
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAuditData">Refresh Audit</MudButton>
+        </MudStack>
+
+        <MudAlert Severity="Severity.Info" Class="mb-4" Variant="Variant.Outlined">
+            This tool compares local <b>Import/@(_auditMonth == 0 ? $"{_auditYear}-*.md" : $"{_auditYear}-{_auditMonth:D2}.md")</b> with the database. Missing or mismatched entries are highlighted.
+        </MudAlert>
+
+        @if (!string.IsNullOrEmpty(_missingFileWarning))
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-4" ShowCloseIcon="true" CloseIconClicked="@(() => _missingFileWarning = null)">
+                @_missingFileWarning
+            </MudAlert>
+        }
+
+        <MudTable Items="@FilteredAuditRows" Dense="true" Hover="true" FixedHeader="true" Height="600px" RowStyleFunc="GetAuditRowStyle">
+            <HeaderContent>
+                <MudTh>Date</MudTh>
+                <MudTh>Emp</MudTh>
+                <MudTh>Markdown Entry (File)</MudTh>
+                <MudTh>Database Entry</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh Style="width: 80px;">Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Date.ToString("MM/dd/yy")</MudTd>
+                <MudTd>@context.Initials</MudTd>
+                <MudTd>
+                    <MudStack Spacing="0">
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                            @(context.MarkdownTime?.ToString("HH:mm") ?? "--:--")
+                        </MudText>
+                        <MudText Typo="Typo.body2" Class="@(context.InMarkdown ? "" : "mud-text-secondary italic")">
+                            @(context.MarkdownDetails ?? "Not in file")
+                        </MudText>
+                    </MudStack>
+                </MudTd>
+                <MudTd>
+                    @if (context.DbLog != null)
+                    {
+                        <MudStack Spacing="0">
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                @(context.DbLog.LogTime?.ToString("HH:mm") ?? "--:--")
+                            </MudText>
+                            <MudText Typo="Typo.body2">
+                                <b>@context.DbLog.SubCategory:</b> @context.DbLog.Details
+                            </MudText>
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary italic">No DB Record</MudText>
+                    }
+                </MudTd>
+                <MudTd>
+                    @if (!context.InMarkdown)
+                    {
+                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">DB Only</MudChip>
+                    }
+                    else if (context.DbLog == null)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Missing</MudChip>
+                    }
+                    else if (Normalize(context.MarkdownDetails) != Normalize(context.DbLog.OriginalDetails))
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Mismatch</MudChip>
+                    }
+                    else if (context.MarkdownTime != context.DbLog.LogTime)
+                    {
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Time Diff</MudChip>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                    }
+                </MudTd>
+                <MudTd>
+                    @if (context.DbLog != null)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.DbLog))" />
+                    }
+                    else
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="@(() => AddMissingFromMarkdown(context))" />
+                    }
+                </MudTd>
+            </RowTemplate>
         </MudTable>
     </MudTabPanel>
 </MudTabs>
@@ -249,14 +374,211 @@
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
     private int _offsetDays => (int)new DateTime(_currentDate.Year, _currentDate.Month, 1).DayOfWeek;
 
+    private List<AuditRow> _auditRows = new();
+    private string _auditFilter = "All";
+    private int _auditYear = DateTime.Today.Year;
+    private int _auditMonth = DateTime.Today.Month;
+    private string? _missingFileWarning;
+
+    private IEnumerable<AuditRow> FilteredAuditRows => _auditFilter switch
+    {
+        "Missing" => _auditRows.Where(r => r.InMarkdown && r.DbLog == null),
+        "Extra" => _auditRows.Where(r => !r.InMarkdown),
+        "Mismatch" => _auditRows.Where(r => r.InMarkdown && r.DbLog != null && 
+                                           (Normalize(r.MarkdownDetails) != Normalize(r.DbLog.OriginalDetails) || 
+                                            r.MarkdownTime != r.DbLog.LogTime)),
+        _ => _auditRows
+    };
+
     protected override async Task OnInitializedAsync()
     {
         await LoadData();
+        await LoadAuditData();
     }
 
     private async Task LoadData()
     {
         _logs = (await WorkLogService.GetWorkLogsAsync()).ToList();
+    }
+
+    private async Task LoadAuditData()
+    {
+        _missingFileWarning = null;
+        var logsPath = Configuration["Migration:LogsPath"] ?? "Import";
+        
+        var employees = await WorkLogService.GetEmployeesAsync();
+        var employeeMap = employees.ToDictionary(e => e.Initials, e => e.Id);
+        var idToInitials = employees.ToDictionary(e => e.Id, e => e.Initials);
+
+        var markdownLogs = new List<WorkLog>();
+        var missingFiles = new List<string>();
+
+        if (_auditMonth == 0)
+        {
+            for (int m = 1; m <= 12; m++)
+            {
+                var fileName = $"{_auditYear}-{m:D2}.md";
+                var filePath = Path.Combine(Env.ContentRootPath, logsPath, fileName);
+                if (File.Exists(filePath))
+                {
+                    markdownLogs.AddRange(await MigrationService.ParseMarkdownFileAsync(filePath, employeeMap));
+                }
+                else if (_auditYear <= DateTime.Today.Year && m <= DateTime.Today.Month)
+                {
+                    missingFiles.Add(fileName);
+                }
+            }
+            if (missingFiles.Any())
+            {
+                _missingFileWarning = $"Missing {missingFiles.Count} markdown files for {_auditYear}.";
+            }
+        }
+        else
+        {
+            var fileName = $"{_auditYear}-{_auditMonth:D2}.md";
+            var filePath = Path.Combine(Env.ContentRootPath, logsPath, fileName);
+            if (File.Exists(filePath))
+            {
+                markdownLogs.AddRange(await MigrationService.ParseMarkdownFileAsync(filePath, employeeMap));
+            }
+            else
+            {
+                _missingFileWarning = $"Markdown file not found: {fileName}";
+            }
+        }
+        
+        // RE-FETCH ALL LOGS
+        var allLogs = await WorkLogService.GetWorkLogsAsync();
+        var dbLogs = allLogs.Where(l => l.LogDate?.Year == _auditYear && (_auditMonth == 0 || l.LogDate?.Month == _auditMonth)).ToList();
+
+        _auditRows.Clear();
+
+        // 1. Map Markdown entries to rows
+        foreach (var m in markdownLogs)
+        {
+            // Match with high confidence (Date, Emp, Details, AND Time)
+            var match = dbLogs.FirstOrDefault(d => 
+                d.LogDate == m.LogDate && 
+                d.EmployeeId == m.EmployeeId && 
+                d.LogTime == m.LogTime &&
+                Normalize(d.OriginalDetails) == Normalize(m.OriginalDetails));
+
+            // Fallback: Match on Date, Emp, and Details (Flag Time Diff)
+            if (match == null)
+            {
+                match = dbLogs.FirstOrDefault(d => 
+                    d.LogDate == m.LogDate && 
+                    d.EmployeeId == m.EmployeeId && 
+                    Normalize(d.OriginalDetails) == Normalize(m.OriginalDetails));
+            }
+
+            _auditRows.Add(new AuditRow
+            {
+                Date = m.LogDate ?? default,
+                EmployeeId = m.EmployeeId,
+                Initials = idToInitials.GetValueOrDefault(m.EmployeeId, "?"),
+                MarkdownDetails = m.OriginalDetails,
+                MarkdownTime = m.LogTime,
+                DbLog = match,
+                InMarkdown = true
+            });
+
+            if (match != null) dbLogs.Remove(match);
+        }
+
+        // 2. Add remaining DB logs (Extra entries)
+        foreach (var d in dbLogs)
+        {
+            _auditRows.Add(new AuditRow
+            {
+                Date = d.LogDate ?? default,
+                EmployeeId = d.EmployeeId,
+                Initials = idToInitials.GetValueOrDefault(d.EmployeeId, "?"),
+                MarkdownDetails = null,
+                MarkdownTime = null,
+                DbLog = d,
+                InMarkdown = false
+            });
+        }
+
+        _auditRows = _auditRows.OrderBy(r => r.Date).ThenBy(r => r.Initials).ToList();
+        StateHasChanged();
+    }
+
+    private string Normalize(string? val) => val?.Trim().ToLower() ?? "";
+
+    private string GetAuditRowStyle(AuditRow row, int index)
+    {
+        if (row.DbLog == null) return "background-color: rgba(244, 67, 54, 0.05);"; // Error/Missing
+        if (!row.InMarkdown) return "background-color: rgba(33, 150, 243, 0.05);"; // Info/Extra
+        if (row.MarkdownTime != row.DbLog?.LogTime) return "background-color: rgba(255, 152, 0, 0.03);"; // Minor warning
+        return "";
+    }
+
+    private async Task AddMissingFromMarkdown(AuditRow row)
+    {
+        var employees = await WorkLogService.GetEmployeesAsync();
+        var emp = employees.FirstOrDefault(e => e.Id == row.EmployeeId);
+        
+        var newLog = new WorkLog
+        {
+            LogDate = row.Date,
+            LogTime = row.MarkdownTime,
+            EmployeeId = row.EmployeeId,
+            Employee = emp,
+            MainCategory = "Work",
+            SubCategory = "In-Office",
+            OriginalDetails = row.MarkdownDetails,
+            Details = row.MarkdownDetails
+        };
+
+        var parameters = new DialogParameters<AddWorkLogDialog> { { x => x.Log, newLog } };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Add Missing Entry", parameters, options);
+        var result = await dialog.Result;
+        
+        if (result != null && !result.Canceled)
+        {
+            await WorkLogService.AddWorkLogAsync((WorkLog)result.Data!);
+            await LoadData();
+            await LoadAuditData();
+            Snackbar.Add("Entry added from Markdown", Severity.Success);
+        }
+    }
+
+    private async Task OnYearChanged(int year)
+    {
+        _currentDate = new DateTime(year, _currentDate.Month, 1);
+        await LoadAuditData();
+    }
+
+    private async Task OnMonthChanged(int month)
+    {
+        _currentDate = new DateTime(_currentDate.Year, month, 1);
+        await LoadAuditData();
+    }
+
+    private async Task OnAuditYearChanged(int year)
+    {
+        _auditYear = year;
+        await LoadAuditData();
+    }
+
+    private async Task OnAuditMonthChanged(int month)
+    {
+        _auditMonth = month;
+        await LoadAuditData();
+    }
+
+    public class AuditRow
+    {
+        public DateOnly Date { get; set; }
+        public int EmployeeId { get; set; }
+        public string Initials { get; set; } = "";
+        public string? MarkdownDetails { get; set; }
+        public TimeOnly? MarkdownTime { get; set; }
+        public WorkLog? DbLog { get; set; }
+        public bool InMarkdown { get; set; }
     }
 
     private string GetLogCssClass(WorkLog log) => log.SubCategory switch
@@ -327,13 +649,13 @@
         {
             await WorkLogService.UpdateWorkLogAsync((WorkLog)result.Data!);
             await LoadData();
+            await LoadAuditData(); // Important: also refresh audit
             Snackbar.Add("Entry updated", Severity.Success);
         }
         else if (result != null && result.Canceled)
         {
-            // If the dialog was closed (even by cancellation), reload data to catch any deletions 
-            // that happened inside the dialog's own delete workflow.
             await LoadData();
+            await LoadAuditData();
         }
     }
 
@@ -344,11 +666,19 @@
         {
             await WorkLogService.DeleteWorkLogAsync(id);
             await LoadData();
+            await LoadAuditData();
             Snackbar.Add("Log deleted", Severity.Success);
         }
     }
 
-    private void PreviousMonth()
- => _currentDate = _currentDate.AddMonths(-1);
-    private void NextMonth() => _currentDate = _currentDate.AddMonths(1);
+    private async Task PreviousMonth()
+    {
+        _currentDate = _currentDate.AddMonths(-1);
+        await LoadAuditData();
+    }
+    private async Task NextMonth()
+    {
+        _currentDate = _currentDate.AddMonths(1);
+        await LoadAuditData();
+    }
 }

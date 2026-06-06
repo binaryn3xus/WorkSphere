@@ -114,6 +114,26 @@
 
 @code {
     private IEnumerable<IncidentViewModel> _incidents = new List<IncidentViewModel>();
+    private string _searchString = "";
+    private bool? _showClosed = false;
+
+    private IEnumerable<IncidentViewModel> FilteredIncidents
+    {
+        get
+        {
+            var filtered = _incidents;
+            if (!string.IsNullOrWhiteSpace(_searchString))
+            {
+                var search = _searchString.ToLower();
+                filtered = filtered.Where(i => i.Title.ToLower().Contains(search) || i.TicketNumber.ToLower().Contains(search));
+            }
+            if (_showClosed.HasValue)
+            {
+                filtered = filtered.Where(i => i.IsClosed == _showClosed.Value);
+            }
+            return filtered;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

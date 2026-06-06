@@ -59,8 +59,19 @@ public static class SchemaInitializer
                     OriginalDetails TEXT,
                     IncidentId INT REFERENCES Incidents(Id) ON DELETE SET NULL,
                     EarnsCompTime BOOLEAN DEFAULT FALSE,
+                    UsesCompTime BOOLEAN DEFAULT FALSE,
                     Hours DECIMAL(5,2) DEFAULT 0
                 );");
+
+            // Migration: Add UsesCompTime column if it doesn't exist
+            await connection.ExecuteAsync(@"
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='worklogs' AND column_name='usescomptime') THEN
+                        ALTER TABLE WorkLogs ADD COLUMN UsesCompTime BOOLEAN DEFAULT FALSE;
+                    END IF;
+                END $$;");
 
             // Migration: Update IncidentId foreign key to ON DELETE SET NULL if not already set
             await connection.ExecuteAsync(@"

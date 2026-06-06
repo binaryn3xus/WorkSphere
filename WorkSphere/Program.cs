@@ -31,8 +31,20 @@ try
 
     builder.Services.AddScoped<WorkLogService>();
     builder.Services.AddScoped<MigrationService>();
+    builder.Services.AddScoped<WorkSphere.Tools.LogAuditTool>();
 
     var app = builder.Build();
+
+    // Check for --audit flag
+    if (args.Contains("--audit"))
+    {
+        using (var scope = app.Services.CreateScope())
+        {
+            var auditTool = scope.ServiceProvider.GetRequiredService<WorkSphere.Tools.LogAuditTool>();
+            await auditTool.RunAuditAsync();
+        }
+        return;
+    }
 
     app.UseSerilogRequestLogging();
 
