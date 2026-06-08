@@ -40,7 +40,7 @@ public class LogAuditTool
 
         var markdownEntries = new List<AuditEntry>();
         var files = Directory.GetFiles(_logsPath, "*.md");
-        
+
         foreach (var file in files)
         {
             var content = await File.ReadAllTextAsync(file);
@@ -48,32 +48,32 @@ public class LogAuditTool
 
             foreach (var line in lines)
             {
-                if (line.StartsWith("|") && !line.Contains("---") && !line.ToLower().Contains("day") && !line.ToLower().Contains("time"))
+                if (!IsMarkdownDataRow(line))
                 {
-                    var parts = line.Split('|', StringSplitOptions.TrimEntries);
-                    if (parts.Length >= 5)
+                    continue;
+                }
+
+                var parts = line.Split('|', StringSplitOptions.TrimEntries);
+                if (parts.Length >= 5)
+                {
+                    var dateStr = parts[1];
+                    var initials = parts[3];
+                    var detailsStr = parts[4];
+
+                    if (string.IsNullOrWhiteSpace(detailsStr) || detailsStr.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (DateOnly.TryParseExact(dateStr, "MM/dd/yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+                        && employeeMap.TryGetValue(initials, out var employeeId))
                     {
-                        var dateStr = parts[1];
-                        var initials = parts[3];
-                        var detailsStr = parts[4];
-
-                        if (string.IsNullOrWhiteSpace(detailsStr) || detailsStr.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        if (DateOnly.TryParseExact(dateStr, "MM/dd/yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                        markdownEntries.Add(new AuditEntry
                         {
-                            if (employeeMap.TryGetValue(initials, out var employeeId))
-                            {
-                                markdownEntries.Add(new AuditEntry 
-                                { 
-                                    Date = date, 
-                                    EmployeeId = employeeId, 
-                                    Initials = initials,
-                                    OriginalDetails = detailsStr,
-                                    SourceFile = Path.GetFileName(file)
-                                });
-                            }
-                        }
+                            Date = date,
+                            EmployeeId = employeeId,
+                            Initials = initials,
+                            OriginalDetails = detailsStr,
+                            SourceFile = Path.GetFileName(file)
+                        });
                     }
                 }
             }
@@ -104,7 +104,7 @@ public class LogAuditTool
             .ToList();
 
         Console.WriteLine("\n--- Audit Results ---");
-        
+
         if (missingInDb.Any())
         {
             Console.WriteLine($"\n[MISSING IN DATABASE] ({missingInDb.Count} items):");
@@ -124,6 +124,24 @@ public class LogAuditTool
                 Console.WriteLine($"  - {e.LogDate:yyyy-MM-dd} | {e.Employee?.Name ?? e.EmployeeId.ToString()} | {e.OriginalDetails}");
             if (extraInDb.Count > 20) Console.WriteLine("  ... and more");
         }
+    }
+
+    private static bool IsMarkdownDataRow(string line)
+    {
+        if (!line.StartsWith("|", StringComparison.Ordinal) || line.Contains("---", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var parts = line.Split('|', StringSplitOptions.TrimEntries);
+        if (parts.Length < 5)
+        {
+            return false;
+        }
+
+        return !(string.Equals(parts[1], "Day", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(parts[2], "Time", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(parts[3], "Subject", StringComparison.OrdinalIgnoreCase));
     }
 
     private class AuditEntry

@@ -57,47 +57,67 @@ public class MigrationService
 
         foreach (var line in lines)
         {
-            if (line.StartsWith("|") && !line.Contains("---") && !line.ToLower().Contains("day") && !line.ToLower().Contains("time"))
+            if (!IsMarkdownDataRow(line))
             {
-                var parts = line.Split('|', StringSplitOptions.TrimEntries);
-                if (parts.Length >= 5)
+                continue;
+            }
+
+            var parts = line.Split('|', StringSplitOptions.TrimEntries);
+            if (parts.Length >= 5)
+            {
+                var dateStr = parts[1];
+                var timeStr = parts[2];
+                var initials = parts[3];
+                var detailsStr = parts[4];
+
+                if (string.IsNullOrWhiteSpace(detailsStr) || detailsStr.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (DateOnly.TryParseExact(dateStr, "MM/dd/yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
                 {
-                    var dateStr = parts[1];
-                    var timeStr = parts[2];
-                    var initials = parts[3];
-                    var detailsStr = parts[4];
-
-                    if (string.IsNullOrWhiteSpace(detailsStr) || detailsStr.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    if (DateOnly.TryParseExact(dateStr, "MM/dd/yy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                    TimeOnly? time = null;
+                    if (TimeOnly.TryParse(timeStr, out var parsedTime))
                     {
-                        TimeOnly? time = null;
-                        if (TimeOnly.TryParse(timeStr, out var parsedTime))
-                        {
-                            time = parsedTime;
-                        }
+                        time = parsedTime;
+                    }
 
-                        var (main, sub, details) = Categorize(detailsStr);
+                    var (main, sub, details) = Categorize(detailsStr);
 
-                        if (employeeMap.TryGetValue(initials, out var employeeId))
+                    if (employeeMap.TryGetValue(initials, out var employeeId))
+                    {
+                        logs.Add(new WorkLog
                         {
-                            logs.Add(new WorkLog
-                            {
-                                LogDate = date,
-                                LogTime = time,
-                                EmployeeId = employeeId,
-                                MainCategory = main,
-                                SubCategory = sub,
-                                Details = details,
-                                OriginalDetails = detailsStr
-                            });
-                        }
+                            LogDate = date,
+                            LogTime = time,
+                            EmployeeId = employeeId,
+                            MainCategory = main,
+                            SubCategory = sub,
+                            Details = details,
+                            OriginalDetails = detailsStr
+                        });
                     }
                 }
             }
         }
         return logs;
+    }
+
+    private static bool IsMarkdownDataRow(string line)
+    {
+        if (!line.StartsWith("|", StringComparison.Ordinal) || line.Contains("---", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var parts = line.Split('|', StringSplitOptions.TrimEntries);
+        if (parts.Length < 5)
+        {
+            return false;
+        }
+
+        return !(string.Equals(parts[1], "Day", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(parts[2], "Time", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(parts[3], "Subject", StringComparison.OrdinalIgnoreCase));
     }
 
     private string GetLogKey(WorkLog l) => $"{l.LogDate:yyyyMMdd}_{l.EmployeeId}_{l.OriginalDetails}";

@@ -103,6 +103,32 @@ public class MigrationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ParseMarkdownFileAsync_DetailsContainingDayOrTime_AreNotSkipped()
+    {
+        // Arrange
+        var markdownContent = @"
+| Day      | Time  | Subject | Details                                          |
+|----------|-------|---------|--------------------------------------------------|
+| 05/07/26 | 08:00 | JG      | Sick Day                                         |
+| 05/08/26 | 08:00 | JG      | Comp Time Used                                   |
+";
+        await File.WriteAllTextAsync(_tempFilePath, markdownContent);
+
+        var service = CreateService();
+        var employeeMap = new Dictionary<string, int> { { "JG", 1 } };
+
+        // Act
+        var logs = await service.ParseMarkdownFileAsync(_tempFilePath, employeeMap);
+
+        // Assert
+        Assert.Equal(2, logs.Count);
+        Assert.Equal("Leave", logs[0].MainCategory);
+        Assert.Equal("Sick Day", logs[0].SubCategory);
+        Assert.Equal("Leave", logs[1].MainCategory);
+        Assert.Equal("Comp Day", logs[1].SubCategory);
+    }
+
+    [Fact]
     public async Task ParseMarkdownFileAsync_UnknownOrMissingEmployee_SkipsRow()
     {
         // Arrange
