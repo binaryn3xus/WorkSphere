@@ -1,23 +1,28 @@
 @page "/tools"
 @using WorkSphere.Services
+@using System.Text
+@using WorkSphere.Models
 @inject MigrationService MigrationService
+@inject WorkLogService WorkLogService
 @inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
 
 <MudText Typo="Typo.h4" GutterBottom="true">System Tools</MudText>
 
 <MudGrid>
     <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4">
+        <MudPaper Class="pa-4 h-100">
             <MudStack Spacing="4">
-                <MudText Typo="Typo.h6">Data Migration</MudText>
+                <MudText Typo="Typo.h6">Data Import</MudText>
                 <MudText Typo="Typo.body2">
                     Import work logs from Markdown files. The system expects files in the <code>WorkSphere/Import</code> directory.
                 </MudText>
                 <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
                     <strong>Process:</strong> The importer parses Markdown tables with the format <code>| Date | Time | Initials | Details |</code>. It uses the employee initials to map logs to existing records and deduplicates based on date, employee, and the original details string.
                 </MudAlert>
+                <MudSpacer />
                 <MudStack Row="true" AlignItems="AlignItems.Center">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportMarkdown" StartIcon="@Icons.Material.Filled.ImportExport">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportMarkdown" StartIcon="@Icons.Material.Filled.UploadFile">
                         Run Import
                     </MudButton>
                     @if (_isImporting)
@@ -29,10 +34,57 @@
             </MudStack>
         </MudPaper>
     </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="pa-4 h-100">
+            <MudStack Spacing="4">
+                <MudText Typo="Typo.h6">Data Export</MudText>
+                <MudText Typo="Typo.body2">
+                    Export database records back into the standard Markdown format for Obsidian backups.
+                </MudText>
+                
+                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-2">
+                    <MudSelect T="int" Label="Year" @bind-Value="_exportYear" Dense="true" Style="max-width: 120px;">
+                        @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
+                        {
+                            <MudSelectItem Value="@y" />
+                        }
+                    </MudSelect>
+                    <MudSelect T="int" Label="Month" @bind-Value="_exportMonth" Dense="true" Style="max-width: 150px;">
+                        <MudSelectItem Value="1">January</MudSelectItem>
+                        <MudSelectItem Value="2">February</MudSelectItem>
+                        <MudSelectItem Value="3">March</MudSelectItem>
+                        <MudSelectItem Value="4">April</MudSelectItem>
+                        <MudSelectItem Value="5">May</MudSelectItem>
+                        <MudSelectItem Value="6">June</MudSelectItem>
+                        <MudSelectItem Value="7">July</MudSelectItem>
+                        <MudSelectItem Value="8">August</MudSelectItem>
+                        <MudSelectItem Value="9">September</MudSelectItem>
+                        <MudSelectItem Value="10">October</MudSelectItem>
+                        <MudSelectItem Value="11">November</MudSelectItem>
+                        <MudSelectItem Value="12">December</MudSelectItem>
+                    </MudSelect>
+                    <MudSelect T="string" Label="Format" @bind-Value="_exportFormat" Dense="true" Style="max-width: 180px;">
+                        <MudSelectItem Value="@("Original")">Original Markdown</MudSelectItem>
+                        <MudSelectItem Value="@("Extended")">Extended Markdown</MudSelectItem>
+                    </MudSelect>
+                </MudStack>
+
+                <MudSpacer />
+                
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ExportMarkdown" StartIcon="@Icons.Material.Filled.Download">
+                    Export Markdown
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    </MudItem>
 </MudGrid>
 
 @code {
     private bool _isImporting = false;
+    private int _exportYear = DateTime.Today.Year;
+    private int _exportMonth = DateTime.Today.Month;
+    private string _exportFormat = "Original";
 
     private async Task ImportMarkdown()
     {
@@ -50,5 +102,75 @@
         {
             _isImporting = false;
         }
+    }
+
+    private async Task ExportMarkdown()
+    {
+        var allLogs = await WorkLogService.GetWorkLogsAsync();
+        var monthLogs = allLogs.Where(l => l.LogDate?.Month == _exportMonth && l.LogDate?.Year == _exportYear)
+                               .OrderBy(l => l.Employee?.Name)
+                               .ThenBy(l => l.LogDate)
+                               .ThenBy(l => l.LogTime)
+                               .ToList();
+
+        if (!monthLogs.Any())
+        {
+            Snackbar.Add("No logs to export for this month.", Severity.Warning);
+            return;
+        }
+
+        var exportDate = new DateTime(_exportYear, _exportMonth, 1);
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {exportDate.ToString("MMMM yyyy")} ({_exportFormat} Format)");
+        sb.AppendLine();
+
+        var groupedLogs = monthLogs.GroupBy(l => l.EmployeeId);
+
+        foreach (var group in groupedLogs)
+        {
+            var firstLog = group.First();
+            var empName = firstLog.Employee?.Name ?? "Unknown";
+            var initials = firstLog.Employee?.Initials ?? "??";
+            
+            sb.AppendLine($"## Subject {empName}");
+            sb.AppendLine();
+
+            if (_exportFormat == "Extended")
+            {
+                sb.AppendLine("| Day      | Time  | Subject | Category            | Comp   | Incident | Details                                          |");
+                sb.AppendLine("|----------|-------|---------|---------------------|--------|----------|--------------------------------------------------|");
+            }
+            else
+            {
+                sb.AppendLine("| Day      | Time  | Subject | Details                                          |");
+                sb.AppendLine("|----------|-------|---------|--------------------------------------------------|");
+            }
+
+            foreach (var log in group)
+            {
+                var dateStr = log.LogDate?.ToString("MM/dd/yy") ?? "";
+                var timeStr = log.LogTime?.ToString("HH:mm") ?? "";
+                var details = log.Details ?? log.OriginalDetails ?? "";
+                
+                if (_exportFormat == "Extended")
+                {
+                    var catStr = $"{log.MainCategory}/{log.SubCategory}";
+                    var compStr = log.EarnsCompTime ? $"+{log.Hours:0.0}" : log.UsesCompTime ? $"-{log.Hours:0.0}" : "";
+                    var incStr = log.IncidentId.HasValue ? $"#{log.IncidentId}" : "";
+                    
+                    sb.AppendLine($"| {dateStr,-8} | {timeStr,-5} | {initials,-7} | {catStr,-19} | {compStr,-6} | {incStr,-8} | {details,-48} |");
+                }
+                else
+                {
+                    sb.AppendLine($"| {dateStr,-8} | {timeStr,-5} | {initials,-7} | {details,-48} |");
+                }
+            }
+            sb.AppendLine();
+        }
+
+        var fileName = $"{exportDate:yyyy-MM}.md";
+        
+        await JSRuntime.InvokeVoidAsync("downloadFileFromText", fileName, sb.ToString());
+        Snackbar.Add($"Exported {fileName}", Severity.Success);
     }
 }

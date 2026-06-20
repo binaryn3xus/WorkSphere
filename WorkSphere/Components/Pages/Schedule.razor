@@ -3,6 +3,7 @@
 @using WorkSphere.Services
 @using System.Globalization
 @using System.IO
+@using System.Text
 @using Microsoft.AspNetCore.Hosting
 @inject WorkLogService WorkLogService
 @inject MigrationService MigrationService
@@ -10,6 +11,7 @@
 @inject ISnackbar Snackbar
 @inject IConfiguration Configuration
 @inject IWebHostEnvironment Env
+@inject IJSRuntime JSRuntime
 
 <MudText Typo="Typo.h4" GutterBottom="true">Team Schedule</MudText>
 
@@ -680,5 +682,52 @@
     {
         _currentDate = _currentDate.AddMonths(1);
         await LoadAuditData();
+    }
+
+    private async Task ExportMonthToMarkdown()
+    {
+        var monthLogs = _logs.Where(l => l.LogDate?.Month == _currentDate.Month && l.LogDate?.Year == _currentDate.Year)
+                             .OrderBy(l => l.Employee?.Name)
+                             .ThenBy(l => l.LogDate)
+                             .ThenBy(l => l.LogTime)
+                             .ToList();
+
+        if (!monthLogs.Any())
+        {
+            Snackbar.Add("No logs to export for this month.", Severity.Warning);
+            return;
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {_currentDate.ToString("MMMM yyyy")}");
+        sb.AppendLine();
+
+        var groupedLogs = monthLogs.GroupBy(l => l.Employee);
+
+        foreach (var group in groupedLogs)
+        {
+            var empName = group.Key?.Name ?? "Unknown";
+            var initials = group.Key?.Initials ?? "??";
+            
+            sb.AppendLine($"## Subject {empName}");
+            sb.AppendLine();
+            sb.AppendLine("| Day      | Time  | Subject | Details                                          |");
+            sb.AppendLine("|----------|-------|---------|--------------------------------------------------|");
+
+            foreach (var log in group)
+            {
+                var dateStr = log.LogDate?.ToString("MM/dd/yy") ?? "";
+                var timeStr = log.LogTime?.ToString("HH:mm") ?? "";
+                var details = log.OriginalDetails ?? log.Details ?? "";
+                
+                // Keep the fixed width columns matching the original format
+                sb.AppendLine($"| {dateStr,-8} | {timeStr,-5} | {initials,-7} | {details,-48} |");
+            }
+            sb.AppendLine();
+        }
+
+        var fileName = $"{_currentDate:yyyy-MM}.md";
+        await JSRuntime.InvokeVoidAsync("downloadFileFromText", fileName, sb.ToString());
+        Snackbar.Add($"Exported {fileName}", Severity.Success);
     }
 }
