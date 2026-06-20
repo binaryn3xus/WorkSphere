@@ -14,6 +14,38 @@
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@NavigateToNewIncident">New Incident</MudButton>
     </MudStack>
 
+    @* Stats Top Bar *@
+    <MudGrid Class="mb-6">
+        <MudItem xs="12" sm="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Elevation="2" Style="border-left: 4px solid var(--mud-palette-primary); border-radius: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.Assignment" Color="Color.Primary" Size="Size.Medium" />
+                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary mt-1">Total Incidents</MudText>
+                <MudText Typo="Typo.h5" Class="font-weight-bold mt-1">@_totalIncidents</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Elevation="2" Style="border-left: 4px solid var(--mud-palette-warning); border-radius: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Size="Size.Medium" />
+                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary mt-1">Active Incidents</MudText>
+                <MudText Typo="Typo.h5" Class="font-weight-bold mt-1">@_activeIncidents</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Elevation="2" Style="border-left: 4px solid var(--mud-palette-success); border-radius: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Medium" />
+                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary mt-1">Resolved Incidents</MudText>
+                <MudText Typo="Typo.h5" Class="font-weight-bold mt-1">@_closedIncidents</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudPaper Class="pa-4 d-flex flex-column align-center justify-center" Elevation="2" Style="border-left: 4px solid var(--mud-palette-info); border-radius: 8px;">
+                <MudIcon Icon="@Icons.Material.Filled.AccessTime" Color="Color.Info" Size="Size.Medium" />
+                <MudText Typo="Typo.subtitle2" Class="mud-text-secondary mt-1">Total Elapsed Time</MudText>
+                <MudText Typo="Typo.h5" Class="font-weight-bold mt-1" Style="white-space: nowrap;">@GetTotalIncidentTime()</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
     <MudStack Spacing="4">
         @foreach (var incident in _incidents)
         {
@@ -27,12 +59,11 @@
                                 <MudChip T="string" Color="@(incident.IsClosed ? Color.Success : Color.Warning)" Size="Size.Small" Variant="Variant.Text" Class="ml-2">
                                     @(incident.IsClosed ? "Closed" : "Open")
                                 </MudChip>
-                                @if (incident.TotalCompHours > 0)
-                                {
+                                <MudTooltip Text="@(incident.IsClosed ? $"Incident duration: {GetElapsedTime(incident)}" : $"Opened {GetElapsedTime(incident)} ago")" Placement="Placement.Top" Arrow="true">
                                     <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.AccessTime" Variant="Variant.Outlined">
-                                        @incident.TotalCompHours h
+                                        @GetElapsedTime(incident)
                                     </MudChip>
-                                }
+                                </MudTooltip>
                             </MudStack>
                             <MudText Typo="Typo.h6">@incident.Title</MudText>
                             <div class="details-preview mt-1">
@@ -85,6 +116,108 @@
                             </MudStack>
                         </MudStack>
                     </MudItem>
+
+                    @* Associated Work Logs Area (Full Width) *@
+                    @if (_incidentLogs.TryGetValue(incident.Id, out var logs) && logs.Any())
+                    {
+                        <MudItem xs="12" Class="pt-0">
+                            <MudDivider Class="my-2" Style="opacity: 0.5;" />
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Class="flex-wrap" Spacing="3">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary font-weight-bold" Style="font-size: 0.75rem;">INVOLVED:</MudText>
+                                    <div style="display: flex; align-items: center; padding-left: 4px;">
+                                        @{
+                                            var uniqueEmps = logs.GroupBy(l => l.Employee).Where(g => g.Key != null).ToList();
+                                            int avatarCount = 0;
+                                        }
+                                        @foreach (var empGroup in uniqueEmps)
+                                        {
+                                            var emp = empGroup.Key!;
+                                            avatarCount++;
+                                            <MudTooltip Text="@($"{emp.Name} ({empGroup.Count()} entries)")" Placement="Placement.Top" Arrow="true">
+                                                <MudAvatar Color="@GetAvatarColor(emp.Initials)" 
+                                                           Size="Size.Small" 
+                                                           Variant="Variant.Filled" 
+                                                           Style="@($"font-size: 0.7rem; font-weight: bold; width: 24px; height: 24px; border: 1.5px solid var(--mud-palette-surface); margin-left: {(avatarCount > 1 ? "-8px" : "0px")}; z-index: {10 - avatarCount};")">
+                                                    @emp.Initials
+                                                </MudAvatar>
+                                            </MudTooltip>
+                                        }
+                                    </div>
+                                </MudStack>
+                                
+                                <span class="mud-text-secondary font-weight-light" style="font-size: 0.8rem;">•</span>
+                                
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size: 0.75rem;">
+                                    @GetInvolvedDateRangeString(logs)
+                                </MudText>
+
+                                <MudSpacer />
+                                
+                                <MudButton Size="Size.Small" 
+                                           Variant="Variant.Text" 
+                                           Color="Color.Primary" 
+                                           StartIcon="@(_expandedIncidents.Contains(incident.Id) ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                           OnClick="@(() => ToggleIncidentLogs(incident.Id))"
+                                           Class="pa-0 px-2 font-weight-bold"
+                                           Style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    @(_expandedIncidents.Contains(incident.Id) ? "Hide History" : $"Show History ({logs.Count})")
+                                </MudButton>
+                            </MudStack>
+                            
+                            <MudCollapse Expanded="@_expandedIncidents.Contains(incident.Id)">
+                                <MudStack Spacing="1" Class="mt-2 pl-3 py-1" Style="border-left: 2px solid var(--mud-palette-primary); background-color: var(--mud-palette-background-grey); border-radius: 0 4px 4px 0;">
+                                    @foreach (var log in logs)
+                                    {
+                                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 4px 12px 4px 0;">
+                                            <div style="display: flex; align-items: flex-start; gap: 8px; flex-grow: 1;">
+                                                <MudTooltip Text="@log.Employee?.Name" Arrow="true" Placement="Placement.Top">
+                                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Class="ma-0" Style="font-size: 0.65rem; font-weight: bold; height: 18px; min-width: 28px; text-align: center;">
+                                                        @log.Employee?.Initials
+                                                    </MudChip>
+                                                </MudTooltip>
+                                                <div style="display: flex; flex-direction: column;">
+                                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                                        <MudText Typo="Typo.caption" Class="font-weight-bold mud-text-primary" Style="font-size: 0.75rem;">
+                                                            @log.LogDate?.ToString("ddd, MMM dd, yyyy")
+                                                        </MudText>
+                                                        @if (log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue)
+                                                        {
+                                                            <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="font-size: 0.7rem;">
+                                                                at @log.LogTime.Value.ToString("h:mm tt")
+                                                            </MudText>
+                                                        }
+                                                        @if (!string.IsNullOrEmpty(log.SubCategory))
+                                                        {
+                                                            <span class="mud-text-secondary" style="font-size: 0.7rem;">•</span>
+                                                            <MudText Typo="Typo.caption" Class="mud-text-secondary italic" Style="font-size: 0.7rem;">
+                                                                @log.SubCategory
+                                                            </MudText>
+                                                        }
+                                                    </div>
+                                                    <MudText Typo="Typo.body2" Class="mud-text-secondary mt-0.5" Style="font-size: 0.8rem; line-height: 1.3;">
+                                                        @log.Details
+                                                    </MudText>
+                                                </div>
+                                            </div>
+                                            @if (log.Hours > 0)
+                                            {
+                                                <div style="display: flex; flex-direction: column; align-items: flex-end;">
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined" Class="ma-0 font-weight-bold" Style="height: 18px; font-size: 0.65rem;">
+                                                        @log.Hours.ToString("0.##") h
+                                                    </MudChip>
+                                                    @if (log.EarnsCompTime)
+                                                    {
+                                                        <MudText Typo="Typo.caption" Color="Color.Warning" Class="font-weight-bold" Style="font-size: 0.6rem; text-transform: uppercase;">Comp</MudText>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </MudStack>
+                            </MudCollapse>
+                        </MudItem>
+                    }
                 </MudGrid>
             </MudPaper>
         }
@@ -114,6 +247,8 @@
 
 @code {
     private IEnumerable<IncidentViewModel> _incidents = new List<IncidentViewModel>();
+    private Dictionary<int, List<WorkLog>> _incidentLogs = new();
+    private HashSet<int> _expandedIncidents = new();
     private string _searchString = "";
     private bool? _showClosed = false;
 
@@ -143,6 +278,10 @@
     private async Task LoadIncidents()
     {
         _incidents = await WorkLogService.GetIncidentStatsAsync();
+        var allLogs = await WorkLogService.GetIncidentWorkLogsAsync();
+        _incidentLogs = allLogs
+            .GroupBy(l => l.IncidentId ?? 0)
+            .ToDictionary(g => g.Key, g => g.ToList());
     }
 
     private string GetPlainTextPreview(string? markdown)
@@ -181,5 +320,100 @@
             Snackbar.Add("Incident deleted", Severity.Info);
             await LoadIncidents();
         }
+    }
+
+    private void ToggleIncidentLogs(int incidentId)
+    {
+        if (_expandedIncidents.Contains(incidentId))
+        {
+            _expandedIncidents.Remove(incidentId);
+        }
+        else
+        {
+            _expandedIncidents.Add(incidentId);
+        }
+    }
+
+    private Color GetAvatarColor(string initials)
+    {
+        if (string.IsNullOrWhiteSpace(initials)) return Color.Default;
+        int sum = initials.Select(c => (int)c).Sum();
+        return (sum % 5) switch
+        {
+            0 => Color.Primary,
+            1 => Color.Secondary,
+            2 => Color.Info,
+            3 => Color.Success,
+            4 => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private string GetInvolvedDateRangeString(List<WorkLog> logs)
+    {
+        if (logs == null || !logs.Any()) return string.Empty;
+        var dates = logs.Select(l => l.LogDate).Where(d => d.HasValue).Select(d => d!.Value).Distinct().OrderBy(d => d).ToList();
+        if (!dates.Any()) return string.Empty;
+        if (dates.Count == 1) return $"Active on {dates.First().ToString("MMM dd, yyyy")}";
+        return $"Active {dates.First().ToString("MMM dd")} - {dates.Last().ToString("MMM dd, yyyy")} ({dates.Count} days)";
+    }
+
+    private string GetElapsedTime(IncidentViewModel incident)
+    {
+        DateTime start = incident.StartedAt;
+        DateTime end = incident.IsClosed ? (incident.EndedAt ?? DateTime.UtcNow) : DateTime.UtcNow;
+        TimeSpan span = end - start;
+
+        if (span.Ticks < 0) span = TimeSpan.Zero;
+
+        if (span.TotalDays >= 1)
+        {
+            int days = (int)Math.Floor(span.TotalDays);
+            return $"{days} {(days == 1 ? "Day" : "Days")}";
+        }
+        if (span.TotalHours >= 1)
+        {
+            int hours = (int)Math.Floor(span.TotalHours);
+            return $"{hours} {(hours == 1 ? "Hour" : "Hours")}";
+        }
+        int minutes = (int)Math.Round(span.TotalMinutes);
+        if (minutes < 1) minutes = 1;
+        return $"{minutes} {(minutes == 1 ? "Minute" : "Minutes")}";
+    }
+
+    private int _totalIncidents => _incidents?.Count() ?? 0;
+    private int _activeIncidents => _incidents?.Count(i => !i.IsClosed) ?? 0;
+    private int _closedIncidents => _incidents?.Count(i => i.IsClosed) ?? 0;
+
+    private string GetTotalIncidentTime()
+    {
+        if (_incidents == null || !_incidents.Any()) return "0 Minutes";
+        
+        double totalMinutes = 0;
+        foreach (var incident in _incidents)
+        {
+            DateTime start = incident.StartedAt;
+            DateTime end = incident.IsClosed ? (incident.EndedAt ?? DateTime.UtcNow) : DateTime.UtcNow;
+            TimeSpan span = end - start;
+            if (span.Ticks > 0)
+            {
+                totalMinutes += span.TotalMinutes;
+            }
+        }
+
+        TimeSpan totalSpan = TimeSpan.FromMinutes(totalMinutes);
+        
+        if (totalSpan.TotalDays >= 1)
+        {
+            double days = Math.Round(totalSpan.TotalDays, 1);
+            return $"{days.ToString("0.#")} {(days == 1 ? "Day" : "Days")}";
+        }
+        if (totalSpan.TotalHours >= 1)
+        {
+            double hours = Math.Round(totalSpan.TotalHours, 1);
+            return $"{hours.ToString("0.#")} {(hours == 1 ? "Hour" : "Hours")}";
+        }
+        int minutes = (int)Math.Round(totalSpan.TotalMinutes);
+        return $"{minutes} {(minutes == 1 ? "Minute" : "Minutes")}";
     }
 }

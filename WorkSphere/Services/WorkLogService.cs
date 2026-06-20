@@ -94,6 +94,22 @@ public class WorkLogService
         return await connection.QueryAsync<IncidentViewModel>(sql);
     }
 
+    public async Task<IEnumerable<WorkLog>> GetIncidentWorkLogsAsync()
+    {
+        const string sql = @"
+            SELECT l.*, e.* 
+            FROM WorkLogs l 
+            JOIN Employees e ON l.EmployeeId = e.Id 
+            WHERE l.IncidentId IS NOT NULL
+            ORDER BY l.LogDate DESC, l.LogTime DESC";
+        using var connection = CreateConnection();
+        return await connection.QueryAsync<WorkLog, Employee, WorkLog>(sql, (log, employee) =>
+        {
+            log.Employee = employee;
+            return log;
+        });
+    }
+
     #region WorkLogs
     public async Task<IEnumerable<WorkLog>> GetWorkLogsAsync()
     {
