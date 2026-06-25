@@ -160,7 +160,7 @@
                                     @if (status != null)
                                     {
                                         <MudTooltip Text="@status.SubCategory">
-                                            <MudIcon Icon="@GetStatusIcon(status.SubCategory)" Color="@GetStatusColor(status.MainCategory)" Size="Size.Small" />
+                                            <MudIcon Icon="@GetStatusIcon(status.SubCategory)" Color="@GetStatusColor(status)" Size="Size.Small" />
                                         </MudTooltip>
                                     }
                                     else
@@ -189,7 +189,7 @@
                                             <MudChip T="string" 
                                                     Variant="Variant.Outlined" 
                                                     Size="Size.Small" 
-                                                    Color="@GetStatusColor(status.MainCategory)" 
+                                                    Color="@GetStatusColor(status)" 
                                                     Icon="@GetStatusIcon(status.SubCategory)"
                                                     Label="true">
                                                 @empName: @status.SubCategory
@@ -354,11 +354,21 @@
         _ => Icons.Material.Filled.Label
     };
 
-    private Color GetStatusColor(string mainCat) => mainCat switch
+    private Color GetStatusColor(WorkLog log) => log.SubCategory switch
     {
-        "Work" => Color.Primary,
-        "Leave" => Color.Error,
-        _ => Color.Default
+        "In-Office" => Color.Info,
+        "Work From Home" => Color.Tertiary,
+        "Remote Location" => Color.Secondary,
+        "PTO" => Color.Success,
+        "Sick Day" => Color.Error,
+        "FMLA Day" => Color.Error,
+        "Comp Day" => Color.Success,
+        _ => log.MainCategory switch
+        {
+            "Work" => Color.Primary,
+            "Leave" => Color.Error,
+            _ => Color.Default
+        }
     };
 
     public class MatrixRow

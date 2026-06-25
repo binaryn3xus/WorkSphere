@@ -20,6 +20,7 @@
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.AlarmOff" OnClick="@(() => SetQuickAction("Leave", "Comp Day", usesComp: true))">USE Comp</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.BeachAccess" OnClick="@(() => SetQuickAction("Leave", "PTO"))">PTO</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.LocalHospital" OnClick="@(() => SetQuickAction("Leave", "Sick Day"))">Sick</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.FamilyRestroom" OnClick="@(() => SetQuickAction("Leave", "FMLA Day"))">FMLA</MudButton>
             </MudStack>
 
             <MudDivider Class="my-2" />
@@ -185,15 +186,6 @@
             _linkToIncident = true;
         }
         
-        // Auto-set standard details for common actions
-        if (string.IsNullOrWhiteSpace(_log.Details))
-        {
-            if (sub == "Work From Home") _log.Details = "Work From Home";
-            if (sub == "In-Office") _log.Details = "Arrive in Office";
-            if (sub == "Incident Response") _log.Details = "Responding to Incident";
-            if (sub == "Comp Day") _log.Details = "Using Comp Time";
-        }
-
         Snackbar.Add($"Set to {sub}", Severity.Info);
     }
 

@@ -38,7 +38,7 @@
                             <MudListItem Icon="@GetLogIcon(log)" IconColor="@GetLogColor(log)">
                                 <div class="d-flex justify-space-between align-center">
                                     <MudText Typo="Typo.body1"><b>@log.Employee?.Name</b></MudText>
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@log.SubCategory</MudChip>
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@GetLogColor(log)">@log.SubCategory</MudChip>
                                 </div>
                             </MudListItem>
                         }
@@ -156,10 +156,19 @@
         _ => Icons.Material.Filled.Label
     };
 
-    private Color GetLogColor(WorkLog log) => log.MainCategory switch
+    private Color GetLogColor(WorkLog log) => log.SubCategory switch
     {
-        "Work" => Color.Primary,
-        "Leave" => Color.Error,
-        _ => Color.Default
+        "In-Office" => Color.Info,
+        "Work From Home" => Color.Tertiary,
+        "Remote Location" => Color.Secondary,
+        "PTO" => Color.Success,
+        "Sick Day" => Color.Error,
+        "FMLA Day" => Color.Error,
+        _ => log.MainCategory switch
+        {
+            "Work" => Color.Primary,
+            "Leave" => Color.Error,
+            _ => Color.Default
+        }
     };
 }

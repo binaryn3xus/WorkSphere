@@ -40,7 +40,7 @@
             @for (int day = 1; day <= _daysInMonth; day++)
             {
                 var date = new DateOnly(_currentDate.Year, _currentDate.Month, day);
-                var dayLogs = _logs.Where(l => l.LogDate == date).ToList();
+                var dayLogs = _logs.Where(l => l.LogDate == date).OrderBy(l => l.Employee?.Name ?? string.Empty, System.StringComparer.OrdinalIgnoreCase).ToList();
                 
                 <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")">
                     <div class="day-number">@day</div>
@@ -358,7 +358,7 @@
 
     /* Sub-Category Accent Borders using Theme Variables */
     .cat-office { border-left-color: var(--mud-palette-info) !important; }
-    .cat-wfh { border-left-color: var(--mud-palette-primary) !important; }
+    .cat-wfh { border-left-color: var(--mud-palette-tertiary) !important; }
     .cat-remote { border-left-color: var(--mud-palette-secondary) !important; }
     .cat-pto { border-left-color: var(--mud-palette-success) !important; }
     .cat-sick { border-left-color: var(--mud-palette-error) !important; }
