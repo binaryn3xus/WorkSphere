@@ -120,7 +120,11 @@ public class MigrationService
         {
             return ("Leave", "Sick Day", details);
         }
-        if (details.Contains("Vacation", StringComparison.OrdinalIgnoreCase) || details.Contains("Holiday", StringComparison.OrdinalIgnoreCase) || details.Contains("PTO", StringComparison.OrdinalIgnoreCase))
+        if (details.Contains("Holiday", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("Leave", "Holiday", details);
+        }
+        if (details.Contains("Vacation", StringComparison.OrdinalIgnoreCase) || details.Contains("PTO", StringComparison.OrdinalIgnoreCase))
         {
             return ("Leave", "PTO", details);
         }

@@ -137,6 +137,67 @@ public class WorkLogService
         await connection.ExecuteAsync(sql, log);
     }
 
+    public async Task<HolidayCreateResult> CreateCompanyHolidayAsync(HolidayCreateRequest request)
+    {
+        if (request.EmployeeIds.Count == 0)
+        {
+            return new HolidayCreateResult();
+        }
+
+        var holidayDetails = request.HolidayName.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            holidayDetails = $"{holidayDetails} - {request.Notes.Trim()}";
+        }
+
+        const string duplicateSql = @"
+            SELECT COUNT(1)
+            FROM WorkLogs
+            WHERE LogDate = @LogDate
+              AND EmployeeId = @EmployeeId
+              AND MainCategory = 'Leave'
+              AND SubCategory = 'Holiday'
+              AND COALESCE(OriginalDetails, Details, '') = @Details";
+
+        const string insertSql = @"
+            INSERT INTO WorkLogs (LogDate, LogTime, EmployeeId, MainCategory, SubCategory, Details, OriginalDetails, IncidentId, EarnsCompTime, UsesCompTime, Hours)
+            VALUES (@LogDate, NULL, @EmployeeId, 'Leave', 'Holiday', @Details, @Details, NULL, FALSE, FALSE, 0)";
+
+        using var connection = CreateConnection();
+        await connection.OpenAsync();
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        var result = new HolidayCreateResult();
+
+        foreach (var employeeId in request.EmployeeIds.Distinct())
+        {
+            var exists = await connection.ExecuteScalarAsync<int>(duplicateSql, new
+            {
+                LogDate = request.HolidayDate,
+                EmployeeId = employeeId,
+                Details = holidayDetails
+            }, transaction);
+
+            if (exists > 0)
+            {
+                result.SkippedCount++;
+                continue;
+            }
+
+            await connection.ExecuteAsync(insertSql, new
+            {
+                LogDate = request.HolidayDate,
+                EmployeeId = employeeId,
+                Details = holidayDetails
+            }, transaction);
+
+            result.CreatedCount++;
+        }
+
+        await transaction.CommitAsync();
+        return result;
+    }
+
     public async Task UpdateWorkLogAsync(WorkLog log)
     {
         _logger.LogInformation("Updating work log ID: {Id}", log.Id);

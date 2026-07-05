@@ -23,6 +23,7 @@
             <MudText Typo="Typo.h5" Class="mx-4" Style="min-width: 200px; text-align: center;">@_currentDate.ToString("MMMM yyyy")</MudText>
             <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
             <MudSpacer />
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="OpenCompanyHolidayDialog" StartIcon="@Icons.Material.Filled.Celebration" Class="mr-2">Company Holiday</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
         </MudStack>
 
@@ -363,6 +364,7 @@
     .cat-pto { border-left-color: var(--mud-palette-success) !important; }
     .cat-sick { border-left-color: var(--mud-palette-error) !important; }
     .cat-fmla { border-left-color: var(--mud-palette-error-darken) !important; }
+    .cat-holiday { border-left-color: var(--mud-palette-warning) !important; }
     .cat-other { border-left-color: var(--mud-palette-grey-darken) !important; }
 </style>
 
@@ -592,6 +594,7 @@
         "Sick Day" => "cat-sick",
         "FMLA Day" => "cat-fmla",
         "Comp Day" => "cat-pto",
+        "Holiday" => "cat-holiday",
         _ => "cat-other"
     };
 
@@ -604,6 +607,7 @@
         "Sick Day" => Icons.Material.Filled.LocalHospital,
         "FMLA Day" => Icons.Material.Filled.FamilyRestroom,
         "Comp Day" => Icons.Material.Filled.History,
+        "Holiday" => Icons.Material.Filled.Celebration,
         _ => Icons.Material.Filled.Label
     };
 
@@ -637,6 +641,30 @@
             await WorkLogService.AddWorkLogAsync((WorkLog)result.Data!);
             await LoadData();
             Snackbar.Add("Entry added", Severity.Success);
+        }
+    }
+
+    private async Task OpenCompanyHolidayDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<CompanyHolidayDialog>("Company Holiday", options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            var createRequest = (HolidayCreateRequest)result.Data!;
+            var createResult = await WorkLogService.CreateCompanyHolidayAsync(createRequest);
+            await LoadData();
+            await LoadAuditData();
+
+            var severity = createResult.CreatedCount > 0 ? Severity.Success : Severity.Warning;
+            var message = $"Created {createResult.CreatedCount} holiday entr{(createResult.CreatedCount == 1 ? "y" : "ies")}";
+            if (createResult.SkippedCount > 0)
+            {
+                message += $" ({createResult.SkippedCount} skipped as duplicates)";
+            }
+
+            Snackbar.Add(message, severity);
         }
     }
 

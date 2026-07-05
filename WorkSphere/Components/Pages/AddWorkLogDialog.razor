@@ -21,6 +21,7 @@
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.BeachAccess" OnClick="@(() => SetQuickAction("Leave", "PTO"))">PTO</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.LocalHospital" OnClick="@(() => SetQuickAction("Leave", "Sick Day"))">Sick</MudButton>
                 <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.FamilyRestroom" OnClick="@(() => SetQuickAction("Leave", "FMLA Day"))">FMLA</MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Celebration" OnClick="@(() => SetQuickAction("Leave", "Holiday"))">Holiday</MudButton>
             </MudStack>
 
             <MudDivider Class="my-2" />
@@ -133,7 +134,7 @@
     private Dictionary<string, List<string>> _categoryMap = new()
     {
         { "Work", new List<string> { "In-Office", "Work From Home", "Remote Location", "Incident Response" } },
-        { "Leave", new List<string> { "PTO", "Sick Day", "FMLA Day", "Comp Day" } },
+        { "Leave", new List<string> { "PTO", "Sick Day", "FMLA Day", "Comp Day", "Holiday" } },
         { "Other", new List<string> { "Other" } }
     };
 
