@@ -1,0 +1,96 @@
+@using WorkSphere.Models
+@using WorkSphere.Services
+@using MudBlazor
+@inject WorkLogService WorkLogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create Company Holiday</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
+                This creates one Leave/Holiday work log for each selected employee on the chosen date.
+            </MudAlert>
+
+            <MudDatePicker Label="Holiday Date" @bind-Date="DateProxy" PickerVariant="PickerVariant.Dialog" />
+            <MudTextField Label="Holiday Name" @bind-Value="_holidayName" Placeholder="Independence Day" Required="true" />
+            <MudTextField Label="Optional Notes" @bind-Value="_notes" Lines="2" Placeholder="Office closed" />
+
+            <MudCheckBox T="bool" @bind-Value="_applyToAllEmployees" Label="Apply to all employees" Color="Color.Primary" />
+
+            @if (!_applyToAllEmployees)
+            {
+                <MudSelect T="int" Label="Employees" MultiSelection="true" @bind-SelectedValues="_selectedEmployeeIds">
+                    @foreach (var employee in _employees)
+                    {
+                        <MudSelectItem T="int" Value="@employee.Id">@employee.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Selected: @SelectedEmployeeCount employee@(SelectedEmployeeCount == 1 ? string.Empty : "s")
+            </MudText>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="Submit">Create Holidays</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private List<Employee> _employees = new();
+    private IReadOnlyCollection<int> _selectedEmployeeIds = new List<int>();
+    private DateOnly _holidayDate = DateOnly.FromDateTime(DateTime.Today);
+    private string _holidayName = string.Empty;
+    private string? _notes;
+    private bool _applyToAllEmployees = true;
+
+    private int SelectedEmployeeCount => _applyToAllEmployees ? _employees.Count : _selectedEmployeeIds.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+        _selectedEmployeeIds = _employees.Select(employee => employee.Id).ToList();
+    }
+
+    private DateTime? DateProxy
+    {
+        get => _holidayDate.ToDateTime(TimeOnly.MinValue);
+        set => _holidayDate = value.HasValue ? DateOnly.FromDateTime(value.Value) : DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private void Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_holidayName))
+        {
+            Snackbar.Add("Holiday name is required.", Severity.Warning);
+            return;
+        }
+
+        var employeeIds = (_applyToAllEmployees ? _employees.Select(employee => employee.Id) : _selectedEmployeeIds)
+            .Distinct()
+            .ToList();
+
+        if (employeeIds.Count == 0)
+        {
+            Snackbar.Add("Select at least one employee.", Severity.Warning);
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(new HolidayCreateRequest
+        {
+            HolidayDate = _holidayDate,
+            HolidayName = _holidayName.Trim(),
+            Notes = string.IsNullOrWhiteSpace(_notes) ? null : _notes.Trim(),
+            EmployeeIds = employeeIds
+        }));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
