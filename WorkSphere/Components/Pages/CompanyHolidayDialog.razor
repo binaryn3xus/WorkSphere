@@ -45,7 +45,7 @@
     [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
 
     private List<Employee> _employees = new();
-    private List<int> _selectedEmployeeIds = new();
+    private IReadOnlyCollection<int> _selectedEmployeeIds = new List<int>();
     private DateOnly _holidayDate = DateOnly.FromDateTime(DateTime.Today);
     private string _holidayName = string.Empty;
     private string? _notes;

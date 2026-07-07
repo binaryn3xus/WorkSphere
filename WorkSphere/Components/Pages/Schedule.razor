@@ -23,8 +23,12 @@
             <MudText Typo="Typo.h5" Class="mx-4" Style="min-width: 200px; text-align: center;">@_currentDate.ToString("MMMM yyyy")</MudText>
             <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
             <MudSpacer />
-            <MudButton Variant="Variant.Outlined" Color="Color.Warning" OnClick="OpenCompanyHolidayDialog" StartIcon="@Icons.Material.Filled.Celebration" Class="mr-2">Company Holiday</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
+            <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
+                <MudButton OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
+                <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem OnClick="OpenCompanyHolidayDialog" Icon="@Icons.Material.Filled.Celebration" IconColor="Color.Warning">Company Holiday</MudMenuItem>
+                </MudMenu>
+            </MudButtonGroup>
         </MudStack>
 
         <div class="calendar-grid">
@@ -77,7 +81,12 @@
     @* --- LOGS TAB --- *@
     <MudTabPanel Text="List View" Icon="@Icons.Material.Filled.List">
         <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenAddDialog">Add Entry</MudButton>
+            <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
+                <MudButton OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
+                <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem OnClick="OpenCompanyHolidayDialog" Icon="@Icons.Material.Filled.Celebration" IconColor="Color.Warning">Company Holiday</MudMenuItem>
+                </MudMenu>
+            </MudButtonGroup>
             <MudSpacer />
             <MudCheckBox T="bool" @bind-Value="_needsReviewOnly" Label="Needs Review" Color="Color.Warning" />
         </MudStack>
