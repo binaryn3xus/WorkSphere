@@ -198,6 +198,97 @@ public class WorkLogService
         return result;
     }
 
+    public async Task<WorkLogRangeResult> CreateWorkLogRangeAsync(WorkLogRangeRequest request)
+    {
+        var result = new WorkLogRangeResult();
+        if (request.StartDate > request.EndDate)
+        {
+            return result;
+        }
+
+        using var connection = CreateConnection();
+        await connection.OpenAsync();
+
+        var holidays = new HashSet<DateOnly>();
+        if (request.SkipHolidays)
+        {
+            const string holidaySql = @"
+                SELECT DISTINCT LogDate
+                FROM WorkLogs
+                WHERE MainCategory = 'Leave'
+                  AND SubCategory = 'Holiday'
+                  AND LogDate >= @StartDate
+                  AND LogDate <= @EndDate";
+            var holidayDates = await connection.QueryAsync<DateOnly>(holidaySql, new { StartDate = request.StartDate, EndDate = request.EndDate });
+            holidays = new HashSet<DateOnly>(holidayDates);
+        }
+
+        const string duplicateSql = @"
+            SELECT COUNT(1)
+            FROM WorkLogs
+            WHERE LogDate = @LogDate
+              AND EmployeeId = @EmployeeId
+              AND MainCategory = @MainCategory
+              AND SubCategory = @SubCategory";
+
+        const string insertSql = @"
+            INSERT INTO WorkLogs (LogDate, LogTime, EmployeeId, MainCategory, SubCategory, Details, OriginalDetails, IncidentId, EarnsCompTime, UsesCompTime, Hours)
+            VALUES (@LogDate, @LogTime, @EmployeeId, @MainCategory, @SubCategory, @Details, @Details, NULL, @EarnsCompTime, @UsesCompTime, @Hours)";
+
+        await using var transaction = await connection.BeginTransactionAsync();
+
+        var currentDate = request.StartDate;
+        while (currentDate <= request.EndDate)
+        {
+            if (request.SkipWeekends && (currentDate.DayOfWeek == DayOfWeek.Saturday || currentDate.DayOfWeek == DayOfWeek.Sunday))
+            {
+                currentDate = currentDate.AddDays(1);
+                continue;
+            }
+
+            if (request.SkipHolidays && holidays.Contains(currentDate))
+            {
+                currentDate = currentDate.AddDays(1);
+                continue;
+            }
+
+            var exists = await connection.ExecuteScalarAsync<int>(duplicateSql, new
+            {
+                LogDate = currentDate,
+                EmployeeId = request.EmployeeId,
+                MainCategory = request.MainCategory,
+                SubCategory = request.SubCategory
+            }, transaction);
+
+            if (exists > 0)
+            {
+                result.SkippedCount++;
+            }
+            else
+            {
+                await connection.ExecuteAsync(insertSql, new
+                {
+                    LogDate = currentDate,
+                    LogTime = request.LogTime,
+                    EmployeeId = request.EmployeeId,
+                    MainCategory = request.MainCategory,
+                    SubCategory = request.SubCategory,
+                    Details = request.Details,
+                    EarnsCompTime = request.EarnsCompTime,
+                    UsesCompTime = request.UsesCompTime,
+                    Hours = request.Hours
+                }, transaction);
+
+                result.CreatedCount++;
+            }
+
+            currentDate = currentDate.AddDays(1);
+        }
+
+        await transaction.CommitAsync();
+        return result;
+    }
+
     public async Task UpdateWorkLogAsync(WorkLog log)
     {
         _logger.LogInformation("Updating work log ID: {Id}", log.Id);
