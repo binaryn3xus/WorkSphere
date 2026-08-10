@@ -24,8 +24,9 @@
             <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
             <MudSpacer />
             <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
-                <MudButton OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
+                <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
                 <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem OnClick="OpenRangeDialog" Icon="@Icons.Material.Filled.DateRange" IconColor="Color.Info">Add Date Range</MudMenuItem>
                     <MudMenuItem OnClick="OpenCompanyHolidayDialog" Icon="@Icons.Material.Filled.Celebration" IconColor="Color.Warning">Company Holiday</MudMenuItem>
                 </MudMenu>
             </MudButtonGroup>
@@ -47,13 +48,13 @@
                 var date = new DateOnly(_currentDate.Year, _currentDate.Month, day);
                 var dayLogs = _logs.Where(l => l.LogDate == date).OrderBy(l => l.Employee?.Name ?? string.Empty, System.StringComparer.OrdinalIgnoreCase).ToList();
                 
-                <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")">
+                <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")" @ondblclick="@(() => OpenAddDialog(date))">
                     <div class="day-number">@day</div>
                     <div class="day-content">
                         @foreach (var log in dayLogs)
                         {
                             <MudTooltip Text="@($"{log.Employee?.Name}: {log.SubCategory} - {log.Details}")" Arrow="true" Placement="Placement.Top">
-                                <div class="log-namecard @GetLogCssClass(log)" @onclick="@(() => OpenEditDialog(log))">
+                                <div class="log-namecard @GetLogCssClass(log)" @onclick="@(() => OpenEditDialog(log))" @onclick:stopPropagation @ondblclick:stopPropagation>
                                     <div class="card-top">
                                         <span class="emp-name">@log.Employee?.Name</span>
                                         @if (log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue)
@@ -82,8 +83,9 @@
     <MudTabPanel Text="List View" Icon="@Icons.Material.Filled.List">
         <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
             <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
-                <MudButton OnClick="OpenAddDialog" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
+                <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
                 <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                    <MudMenuItem OnClick="OpenRangeDialog" Icon="@Icons.Material.Filled.DateRange" IconColor="Color.Info">Add Date Range</MudMenuItem>
                     <MudMenuItem OnClick="OpenCompanyHolidayDialog" Icon="@Icons.Material.Filled.Celebration" IconColor="Color.Warning">Company Holiday</MudMenuItem>
                 </MudMenu>
             </MudButtonGroup>
@@ -275,6 +277,7 @@
 
     .calendar-day:hover {
         background-color: var(--mud-palette-background-grey);
+        cursor: pointer;
     }
 
     .calendar-day.empty {
@@ -640,16 +643,57 @@
                (log.OriginalDetails?.ToLower().Contains(search) ?? false);
     }
 
-    private async Task OpenAddDialog()
+    private async Task OpenAddDialog(DateOnly? presetDate)
     {
         var options = new DialogOptions { CloseOnEscapeKey = true };
-        var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Add Log", options);
-        var result = await dialog.Result;
+        DialogResult? result = null;
+        
+        if (presetDate.HasValue)
+        {
+            var newLog = new WorkLog
+            {
+                LogDate = presetDate.Value,
+                LogTime = null, // Will be set to client local time in AddWorkLogDialog.razor
+                MainCategory = "Work",
+                SubCategory = "In-Office"
+            };
+            var parameters = new DialogParameters<AddWorkLogDialog> { { x => x.Log, newLog } };
+            var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Add Log", parameters, options);
+            result = await dialog.Result;
+        }
+        else
+        {
+            var dialog = await DialogService.ShowAsync<AddWorkLogDialog>("Add Log", options);
+            result = await dialog.Result;
+        }
+
         if (result != null && !result.Canceled)
         {
             await WorkLogService.AddWorkLogAsync((WorkLog)result.Data!);
             await LoadData();
             Snackbar.Add("Entry added", Severity.Success);
+        }
+    }
+
+    private async Task OpenRangeDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<AddRangeWorkLogDialog>("Add Date Range", options);
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+        {
+            var request = (WorkLogRangeRequest)result.Data!;
+            var createResult = await WorkLogService.CreateWorkLogRangeAsync(request);
+            await LoadData();
+            await LoadAuditData();
+
+            var severity = createResult.CreatedCount > 0 ? Severity.Success : Severity.Warning;
+            var message = $"Created {createResult.CreatedCount} range entry/entries";
+            if (createResult.SkippedCount > 0)
+            {
+                message += $" ({createResult.SkippedCount} skipped as duplicates/holidays/weekends)";
+            }
+            Snackbar.Add(message, severity);
         }
     }
 

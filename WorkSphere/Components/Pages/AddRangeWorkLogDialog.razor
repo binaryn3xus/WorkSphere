@@ -3,12 +3,11 @@
 @using MudBlazor
 @inject WorkLogService WorkLogService
 @inject ISnackbar Snackbar
-@inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@_title</MudText>
+        <MudText Typo="Typo.h6">Add Date Range Entries</MudText>
     </TitleContent>
     <DialogContent>
         <MudStack Spacing="4">
@@ -29,13 +28,16 @@
 
             <MudGrid>
                 <MudItem xs="6">
-                    <MudDatePicker Label="Date" @bind-Date="DateProxy" PickerVariant="PickerVariant.Dialog" />
+                    <MudDatePicker Label="Start Date" @bind-Date="StartDateProxy" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="6">
-                    <MudTimePicker Label="Time" @bind-Time="TimeProxy" PickerVariant="PickerVariant.Dialog" MinuteSelectionStep="5" />
+                    <MudDatePicker Label="End Date" @bind-Date="EndDateProxy" PickerVariant="PickerVariant.Dialog" />
                 </MudItem>
                 <MudItem xs="12">
-                    <MudSelect T="int" Label="Employee" @bind-Value="_log.EmployeeId">
+                    <MudTimePicker Label="Time (Optional)" @bind-Time="TimeProxy" PickerVariant="PickerVariant.Dialog" MinuteSelectionStep="5" Clearable="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect T="int" Label="Employee" @bind-Value="_request.EmployeeId">
                         @foreach (var emp in _employees)
                         {
                             <MudSelectItem Value="@emp.Id">@emp.Name</MudSelectItem>
@@ -43,7 +45,7 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="6">
-                    <MudSelect T="string" Label="Main Category" Value="_log.MainCategory" ValueChanged="OnMainCategoryChanged">
+                    <MudSelect T="string" Label="Main Category" Value="_request.MainCategory" ValueChanged="OnMainCategoryChanged">
                         @foreach (var main in _categoryMap.Keys)
                         {
                             <MudSelectItem Value="@main" />
@@ -51,12 +53,24 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="6">
-                    <MudSelect T="string" Label="Sub-Category" @bind-Value="_log.SubCategory">
+                    <MudSelect T="string" Label="Sub-Category" @bind-Value="_request.SubCategory">
                         @foreach (var sub in _currentSubCategories)
                         {
                             <MudSelectItem Value="@sub" />
                         }
                     </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudPaper Elevation="0" Class="pa-4 mud-background-gray border-all" Style="border: 1px dashed var(--mud-palette-divider);">
+                        <MudStack Spacing="2">
+                            <MudText Typo="Typo.subtitle2">Range Creation Options</MudText>
+                            <MudStack Row="true">
+                                <MudCheckBox T="bool" @bind-Value="_request.SkipWeekends" Label="Skip Weekends" Color="Color.Primary" />
+                                <MudCheckBox T="bool" @bind-Value="_request.SkipHolidays" Label="Skip Company Holidays" Color="Color.Warning" />
+                            </MudStack>
+                        </MudStack>
+                    </MudPaper>
                 </MudItem>
                 
                 <MudItem xs="12">
@@ -64,38 +78,21 @@
                         <MudStack Spacing="2">
                             <MudText Typo="Typo.subtitle2">Comp Time Settings</MudText>
                             <MudStack Row="true">
-                                <MudCheckBox T="bool" @bind-Value="_log.EarnsCompTime" Label="Earns Comp Time" Color="Color.Warning" />
-                                <MudCheckBox T="bool" @bind-Value="_log.UsesCompTime" Label="Uses Comp Time" Color="Color.Error" />
+                                <MudCheckBox T="bool" @bind-Value="_request.EarnsCompTime" Label="Earns Comp Time" Color="Color.Warning" />
+                                <MudCheckBox T="bool" @bind-Value="_request.UsesCompTime" Label="Uses Comp Time" Color="Color.Error" />
                             </MudStack>
                             
-                            @if (_log.EarnsCompTime || _log.UsesCompTime)
+                            @if (_request.EarnsCompTime || _request.UsesCompTime)
                             {
-                                <MudNumericField Label="@(_log.EarnsCompTime ? "Hours Earned" : "Hours Used")" @bind-Value="_log.Hours" Min="0" Step="0.25m" Variant="Variant.Outlined" />
+                                <MudNumericField Label="@(_request.EarnsCompTime ? "Hours Earned" : "Hours Used")" @bind-Value="_request.Hours" Min="0" Step="0.25m" Variant="Variant.Outlined" />
                             }
                         </MudStack>
                     </MudPaper>
                 </MudItem>
 
                 <MudItem xs="12">
-                    <MudCheckBox T="bool" Value="_linkToIncident" ValueChanged="OnLinkToIncidentChanged" Label="Link to Incident" Color="Color.Primary" />
-                </MudItem>
-
-                @if (_linkToIncident)
-                {
-                    <MudItem xs="12">
-                        <MudSelect T="int?" Label="Select Incident" @bind-Value="_log.IncidentId" Clearable="true">
-                            @foreach (var inc in _incidents)
-                            {
-                                <MudSelectItem Value="@((int?)inc.Id)">@inc.ToString()</MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-                }
-
-                <MudItem xs="12">
-                    @* Details with Hot Buttons *@
                     <div>
-                        <MudTextField Label="Details" @bind-Value="_log.Details" Lines="2" />
+                        <MudTextField Label="Details" @bind-Value="_request.Details" Lines="2" />
                         <MudStack Row="true" Spacing="1" Class="mt-1">
                             <MudChip T="string" Size="Size.Small" OnClick="@(() => AddDetail("Unexpected"))" Variant="Variant.Text">+Unexpected</MudChip>
                             <MudChip T="string" Size="Size.Small" OnClick="@(() => AddDetail("Swap"))" Variant="Variant.Text">+Swap</MudChip>
@@ -106,27 +103,25 @@
         </MudStack>
     </DialogContent>
     <DialogActions>
-        @if (_log.Id != 0)
-        {
-            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="DeleteLog" StartIcon="@Icons.Material.Filled.Delete" Class="mr-auto">Delete</MudButton>
-        }
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Save Entry</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Create Entries</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public WorkLog? Log { get; set; }
+    private WorkLogRangeRequest _request = new()
+    {
+        StartDate = DateOnly.FromDateTime(DateTime.Today),
+        EndDate = DateOnly.FromDateTime(DateTime.Today),
+        MainCategory = "Work",
+        SubCategory = "In-Office",
+        SkipWeekends = true,
+        SkipHolidays = true
+    };
 
-    private string _title => (Log == null || Log.Id == 0) ? "Add Log" : "Edit Log";
-    private bool _isNewEntry;
-    private bool _isPreFilled;
-    private WorkLog _log = new();
     private IEnumerable<Employee> _employees = new List<Employee>();
-    private IEnumerable<Incident> _incidents = new List<Incident>();
-    private bool _linkToIncident;
 
     private Dictionary<string, List<string>> _categoryMap = new()
     {
@@ -135,62 +130,27 @@
         { "Other", new List<string> { "Other" } }
     };
 
-    private List<string> _currentSubCategories => _categoryMap.ContainsKey(_log.MainCategory) 
-        ? _categoryMap[_log.MainCategory] 
+    private List<string> _currentSubCategories => _categoryMap.ContainsKey(_request.MainCategory) 
+        ? _categoryMap[_request.MainCategory] 
         : new List<string> { "Other" };
 
     protected override async Task OnInitializedAsync()
     {
         _employees = await WorkLogService.GetEmployeesAsync();
-        _incidents = await WorkLogService.GetIncidentsAsync();
-        
-        if (Log == null)
-        {
-            _log = new WorkLog
-            {
-                LogDate = DateOnly.FromDateTime(DateTime.Today),
-                LogTime = new TimeOnly(DateTime.Now.Hour, DateTime.Now.Minute),
-                EmployeeId = _employees.FirstOrDefault()?.Id ?? 0,
-                MainCategory = "Work",
-                SubCategory = "In-Office"
-            };
-            _isNewEntry = true;
-            _isPreFilled = false;
-        }
-        else
-        {
-            _log = new WorkLog
-            {
-                Id = Log.Id,
-                LogDate = Log.LogDate,
-                LogTime = Log.LogTime,
-                EmployeeId = Log.EmployeeId == 0 ? _employees.FirstOrDefault()?.Id ?? 0 : Log.EmployeeId,
-                MainCategory = Log.MainCategory,
-                SubCategory = Log.SubCategory,
-                Details = Log.Details,
-                OriginalDetails = Log.OriginalDetails,
-                IncidentId = Log.IncidentId,
-                EarnsCompTime = Log.EarnsCompTime,
-                UsesCompTime = Log.UsesCompTime,
-                Hours = Log.Hours
-            };
-            _isNewEntry = Log.Id == 0;
-            _isPreFilled = true;
-        }
-
-        _linkToIncident = _log.IncidentId.HasValue;
+        _request.EmployeeId = _employees.FirstOrDefault()?.Id ?? 0;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _isNewEntry && !_isPreFilled)
+        if (firstRender)
         {
             try
             {
                 var offsetMinutes = await JSRuntime.InvokeAsync<int>("getLocalTimezoneOffset");
                 var localDateTime = DateTime.UtcNow.AddMinutes(-offsetMinutes);
-                _log.LogDate = DateOnly.FromDateTime(localDateTime);
-                _log.LogTime = new TimeOnly(localDateTime.Hour, localDateTime.Minute);
+                var clientToday = DateOnly.FromDateTime(localDateTime);
+                _request.StartDate = clientToday;
+                _request.EndDate = clientToday;
                 StateHasChanged();
             }
             catch
@@ -200,75 +160,64 @@
         }
     }
 
-    private void OnLinkToIncidentChanged(bool val)
-    {
-        _linkToIncident = val;
-        if (!val)
-        {
-            _log.IncidentId = null;
-        }
-    }
-
     private void SetQuickAction(string main, string sub, bool earnsComp = false, bool usesComp = false)
     {
-        _log.MainCategory = main;
-        _log.SubCategory = sub;
-        _log.EarnsCompTime = earnsComp;
-        _log.UsesCompTime = usesComp;
-        
-        if (earnsComp)
-        {
-            _linkToIncident = true;
-        }
+        _request.MainCategory = main;
+        _request.SubCategory = sub;
+        _request.EarnsCompTime = earnsComp;
+        _request.UsesCompTime = usesComp;
         
         Snackbar.Add($"Set to {sub}", Severity.Info);
     }
 
     private void AddDetail(string text)
     {
-        if (string.IsNullOrWhiteSpace(_log.Details))
-            _log.Details = text;
-        else if (!_log.Details.Contains(text))
-            _log.Details += $" ({text})";
+        if (string.IsNullOrWhiteSpace(_request.Details))
+            _request.Details = text;
+        else if (!_request.Details.Contains(text))
+            _request.Details += $" ({text})";
     }
 
     private void OnMainCategoryChanged(string val)
     {
-        _log.MainCategory = val;
-        _log.SubCategory = _categoryMap[val].First();
+        _request.MainCategory = val;
+        _request.SubCategory = _categoryMap[val].First();
     }
 
-    private DateTime? DateProxy
+    private DateTime? StartDateProxy
     {
-        get => _log.LogDate?.ToDateTime(TimeOnly.MinValue);
-        set => _log.LogDate = value.HasValue ? DateOnly.FromDateTime(value.Value) : null;
+        get => _request.StartDate.ToDateTime(TimeOnly.MinValue);
+        set => _request.StartDate = value.HasValue ? DateOnly.FromDateTime(value.Value) : DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private DateTime? EndDateProxy
+    {
+        get => _request.EndDate.ToDateTime(TimeOnly.MinValue);
+        set => _request.EndDate = value.HasValue ? DateOnly.FromDateTime(value.Value) : DateOnly.FromDateTime(DateTime.Today);
     }
 
     private TimeSpan? TimeProxy
     {
-        get => _log.LogTime?.ToTimeSpan();
-        set => _log.LogTime = value.HasValue ? TimeOnly.FromTimeSpan(value.Value) : null;
+        get => _request.LogTime?.ToTimeSpan();
+        set => _request.LogTime = value.HasValue ? TimeOnly.FromTimeSpan(value.Value) : null;
     }
 
     private void Submit() 
     {
-        MudDialog.Close(DialogResult.Ok(_log));
+        if (_request.EmployeeId == 0)
+        {
+            Snackbar.Add("An employee must be selected.", Severity.Warning);
+            return;
+        }
+
+        if (_request.StartDate > _request.EndDate)
+        {
+            Snackbar.Add("Start date must be on or before end date.", Severity.Warning);
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(_request));
     }
 
     private void Cancel() => MudDialog.Cancel();
-
-    private async Task DeleteLog()
-    {
-        bool? result = await DialogService.ShowMessageBoxAsync(
-            "Confirm Delete", 
-            "Are you sure you want to delete this work log?", 
-            yesText: "Delete", cancelText: "Cancel");
-
-        if (result == true)
-        {
-            await WorkLogService.DeleteWorkLogAsync(_log.Id);
-            Snackbar.Add("Work log deleted", Severity.Success);
-            MudDialog.Close(DialogResult.Cancel());
-        }
-    }
 }
