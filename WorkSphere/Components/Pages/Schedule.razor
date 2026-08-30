@@ -52,7 +52,9 @@
                 
                 <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")"
                      data-calendar-day="@date.ToString("yyyy-MM-dd")"
-                     @ondblclick="@(() => OpenAddDialog(date))">
+                     @ondblclick="@(() => OpenAddDialog(date))"
+                     @oncontextmenu="@((MouseEventArgs args) => OpenDayContextMenu(args, date))"
+                     @oncontextmenu:preventDefault>
                     <div class="day-number">@day</div>
                     <div class="day-content">
                         @foreach (var log in dayLogs)
@@ -102,6 +104,16 @@
                             data-testid="calendar-copy-action"
                             @onclick="CopyContextMenuLog">
                         Copy Entry
+                    </button>
+                }
+
+                @if (_calendarContextMenu.TargetDate.HasValue)
+                {
+                    <button type="button"
+                            class="calendar-context-menu__item"
+                            data-testid="calendar-paste-action"
+                            @onclick="PasteContextMenuEntryAsync">
+                        Paste Entry
                     </button>
                 }
             </div>
@@ -753,6 +765,23 @@
         };
     }
 
+    private void OpenDayContextMenu(MouseEventArgs args, DateOnly targetDate)
+    {
+        if (!CanPasteCopiedEntryTo(targetDate))
+        {
+            HideCalendarContextMenu();
+            return;
+        }
+
+        _calendarContextMenu = new CalendarContextMenuState
+        {
+            IsVisible = true,
+            X = args.ClientX,
+            Y = args.ClientY,
+            TargetDate = targetDate
+        };
+    }
+
     private void HideCalendarContextMenu()
     {
         if (_calendarContextMenu.IsVisible)
@@ -772,6 +801,62 @@
         HideCalendarContextMenu();
         Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
         return Task.CompletedTask;
+    }
+
+    private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
+        _copiedEntry is not null && _copiedEntry.SourceDate != targetDate;
+
+    private async Task PasteContextMenuEntryAsync()
+    {
+        if (_calendarContextMenu.TargetDate is not DateOnly targetDate)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add("Select a day to paste into.", Severity.Warning);
+            return;
+        }
+
+        if (_copiedEntry is null)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add("Copy an entry before pasting.", Severity.Warning);
+            return;
+        }
+
+        if (_copiedEntry.SourceDate == targetDate)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add("Choose a different day to paste this entry.", Severity.Warning);
+            return;
+        }
+
+        var pastedLog = new WorkLog
+        {
+            LogDate = targetDate,
+            LogTime = _copiedEntry.LogTime,
+            EmployeeId = _copiedEntry.EmployeeId,
+            MainCategory = _copiedEntry.MainCategory,
+            SubCategory = _copiedEntry.SubCategory,
+            Details = _copiedEntry.Details,
+            OriginalDetails = _copiedEntry.OriginalDetails,
+            IncidentId = _copiedEntry.IncidentId,
+            EarnsCompTime = _copiedEntry.EarnsCompTime,
+            UsesCompTime = _copiedEntry.UsesCompTime,
+            Hours = _copiedEntry.Hours
+        };
+
+        try
+        {
+            await WorkLogService.AddWorkLogAsync(pastedLog);
+            await LoadData();
+            await LoadAuditData();
+            HideCalendarContextMenu();
+            Snackbar.Add($"Pasted entry for {_copiedEntry.EmployeeName} to {targetDate:MM/dd/yyyy}", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add($"Could not paste entry: {ex.Message}", Severity.Error);
+        }
     }
 
     private Task ToggleLogSelection(int id, bool isSelected)
@@ -1037,6 +1122,7 @@
         public double X { get; init; }
         public double Y { get; init; }
         public WorkLog? Log { get; init; }
+        public DateOnly? TargetDate { get; init; }
     }
 
     private sealed class CopiedCalendarEntry

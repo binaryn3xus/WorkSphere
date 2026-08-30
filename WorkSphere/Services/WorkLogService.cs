@@ -126,7 +126,7 @@ public class WorkLogService
         });
     }
 
-    public async Task AddWorkLogAsync(WorkLog log)
+    public virtual async Task AddWorkLogAsync(WorkLog log)
     {
         _logger.LogInformation("Adding work log for employee {EmployeeId}: {MainCategory}/{SubCategory}", log.EmployeeId, log.MainCategory, log.SubCategory);
         const string sql = @"
