@@ -18,7 +18,7 @@ public class WorkLogService
     private NpgsqlConnection CreateConnection() => new NpgsqlConnection(_connectionString);
 
     #region Employees
-    public async Task<IEnumerable<Employee>> GetEmployeesAsync()
+    public virtual async Task<IEnumerable<Employee>> GetEmployeesAsync()
     {
         const string sql = "SELECT * FROM Employees ORDER BY Name";
         using var connection = CreateConnection();
@@ -111,7 +111,7 @@ public class WorkLogService
     }
 
     #region WorkLogs
-    public async Task<IEnumerable<WorkLog>> GetWorkLogsAsync()
+    public virtual async Task<IEnumerable<WorkLog>> GetWorkLogsAsync()
     {
         const string sql = @"
             SELECT l.*, e.* 
@@ -305,7 +305,7 @@ public class WorkLogService
         await connection.ExecuteAsync(sql, log);
     }
 
-    public async Task DeleteWorkLogAsync(int id)
+    public virtual async Task DeleteWorkLogAsync(int id)
     {
         _logger.LogInformation("Deleting work log ID: {Id}", id);
         const string sql = "DELETE FROM WorkLogs WHERE Id = @Id";
@@ -313,7 +313,7 @@ public class WorkLogService
         await connection.ExecuteAsync(sql, new { Id = id });
     }
 
-    public async Task<int> DeleteWorkLogsAsync(IEnumerable<int> ids)
+    public virtual async Task<int> DeleteWorkLogsAsync(IEnumerable<int> ids)
     {
         var distinctIds = ids?.Distinct().ToArray() ?? [];
         if (distinctIds.Length == 0)
