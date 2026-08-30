@@ -834,7 +834,7 @@
         }
 
         HideCalendarContextMenu();
-        await DeleteLog(log.Id);
+        await DeleteLog(log, isCalendarEntry: true);
     }
 
     private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
@@ -1025,16 +1025,28 @@
         }
     }
 
-    private async Task DeleteLog(int id)
+    private Task DeleteLog(int id) => DeleteLog(_logs.FirstOrDefault(log => log.Id == id));
+
+    private async Task DeleteLog(WorkLog? log, bool isCalendarEntry = false)
     {
-        bool? result = await DialogService.ShowMessageBoxAsync("Delete Entry", "Are you sure?", yesText:"Delete!", cancelText:"Cancel");
+        if (log is not { Id: > 0 })
+        {
+            return;
+        }
+
+        bool? result = await DialogService.ShowMessageBoxAsync(
+            isCalendarEntry ? "Delete Calendar Entry" : "Delete Entry",
+            GetDeleteLogConfirmationMessage(log, isCalendarEntry),
+            yesText: "Delete",
+            cancelText: "Cancel");
+
         if (result == true)
         {
             try
             {
                 _isDeletingLogs = true;
-                await WorkLogService.DeleteWorkLogAsync(id);
-                _selectedLogIds.Remove(id);
+                await WorkLogService.DeleteWorkLogAsync(log.Id);
+                _selectedLogIds.Remove(log.Id);
                 await LoadData();
                 await LoadAuditData();
                 Snackbar.Add("Log deleted", Severity.Success);
@@ -1048,6 +1060,22 @@
                 _isDeletingLogs = false;
             }
         }
+    }
+
+    private static string GetDeleteLogConfirmationMessage(WorkLog log, bool isCalendarEntry)
+    {
+        if (!isCalendarEntry)
+        {
+            return "Are you sure you want to delete this work log?";
+        }
+
+        var employeeName = string.IsNullOrWhiteSpace(log.Employee?.Name)
+            ? "this employee"
+            : log.Employee.Name;
+
+        var dateText = log.LogDate?.ToString("MM/dd/yyyy") ?? "the selected day";
+
+        return $"Are you sure you want to delete the calendar entry for {employeeName} on {dateText}?";
     }
 
     private async Task DeleteSelectedLogs()

@@ -225,10 +225,74 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
 
         cut.WaitForAssertion(() =>
         {
+            harness.DialogServiceMock.Verify(service => service.ShowMessageBoxAsync(
+                "Delete Calendar Entry",
+                "Are you sure you want to delete the calendar entry for Employee 1 on 08/01/2026?",
+                "Delete",
+                null,
+                "Cancel",
+                It.IsAny<DialogOptions?>()), Times.Once);
             harness.WorkLogServiceMock.Verify(service => service.DeleteWorkLogAsync(1), Times.Once);
             harness.SnackbarMock.Verify(snackbar => snackbar.Add("Log deleted", Severity.Success, It.IsAny<Action<SnackbarOptions>>(), It.IsAny<string?>()), Times.Once);
             Assert.Empty(cut.FindAll("[data-testid='calendar-context-menu']"));
             Assert.Null(cut.FindAll("[data-log-id='1']").FirstOrDefault());
+        });
+    }
+
+    [Fact]
+    public void CalendarEntryContextMenu_DeleteAction_Cancelled_DoesNotDeleteEntry()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs, confirmDelete: null);
+
+        var cut = harness.RenderCalendar();
+
+        OpenCalendarContextMenu(cut, logId: 1);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid='calendar-delete-action']")));
+        cut.Find("[data-testid='calendar-delete-action']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            harness.DialogServiceMock.Verify(service => service.ShowMessageBoxAsync(
+                "Delete Calendar Entry",
+                "Are you sure you want to delete the calendar entry for Employee 1 on 08/01/2026?",
+                "Delete",
+                null,
+                "Cancel",
+                It.IsAny<DialogOptions?>()), Times.Once);
+            harness.WorkLogServiceMock.Verify(service => service.DeleteWorkLogAsync(It.IsAny<int>()), Times.Never);
+            Assert.NotNull(cut.Find("[data-log-id='1']"));
+            Assert.Empty(cut.FindAll("[data-testid='calendar-context-menu']"));
+        });
+    }
+
+    [Fact]
+    public void CalendarEntryContextMenu_DeleteAction_Failure_ShowsErrorAndKeepsCalendarView()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(
+            _contentRoot,
+            initialLogs,
+            initialLogs,
+            confirmDelete: true,
+            deleteSingleException: new InvalidOperationException("boom"));
+
+        var cut = harness.RenderCalendar();
+
+        OpenCalendarContextMenu(cut, logId: 1);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid='calendar-delete-action']")));
+        cut.Find("[data-testid='calendar-delete-action']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            harness.WorkLogServiceMock.Verify(service => service.DeleteWorkLogAsync(1), Times.Once);
+            harness.SnackbarMock.Verify(snackbar => snackbar.Add(
+                It.Is<string>(message => message.Contains("Could not delete log: boom", StringComparison.Ordinal)),
+                Severity.Error,
+                It.IsAny<Action<SnackbarOptions>>(),
+                It.IsAny<string?>()), Times.Once);
+            Assert.NotNull(cut.Find("[data-log-id='1']"));
+            Assert.Empty(cut.FindAll("[data-testid='calendar-context-menu']"));
         });
     }
 
@@ -366,7 +430,8 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             IReadOnlyCollection<WorkLog> refreshedLogs,
             bool? confirmDelete = true,
             int deletedCount = 0,
-            Exception? deleteException = null)
+            Exception? deleteException = null,
+            Exception? deleteSingleException = null)
         {
             Directory.CreateDirectory(Path.Combine(contentRoot, "Import"));
 
@@ -389,6 +454,17 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
                 .ReturnsAsync(refreshedLogs);
             WorkLogServiceMock.Setup(service => service.GetEmployeesAsync())
                 .ReturnsAsync(initialLogs.Select(log => log.Employee!).DistinctBy(employee => employee.Id).ToList());
+
+            if (deleteSingleException is not null)
+            {
+                WorkLogServiceMock.Setup(service => service.DeleteWorkLogAsync(It.IsAny<int>()))
+                    .ThrowsAsync(deleteSingleException);
+            }
+            else
+            {
+                WorkLogServiceMock.Setup(service => service.DeleteWorkLogAsync(It.IsAny<int>()))
+                    .Returns(Task.CompletedTask);
+            }
 
             if (deleteException is not null)
             {
@@ -425,6 +501,8 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
         }
 
         public Mock<WorkLogService> WorkLogServiceMock { get; }
+
+        public Mock<IDialogService> DialogServiceMock => _dialogServiceMock;
 
         public Mock<ISnackbar> SnackbarMock => _snackbarMock;
 
