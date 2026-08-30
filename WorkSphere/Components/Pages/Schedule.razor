@@ -4,6 +4,7 @@
 @using System.Globalization
 @using System.IO
 @using System.Text
+@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.AspNetCore.Hosting
 @inject WorkLogService WorkLogService
 @inject MigrationService MigrationService
@@ -32,6 +33,7 @@
             </MudButtonGroup>
         </MudStack>
 
+        <div class="calendar-surface" @onclick="HideCalendarContextMenu">
         <div class="calendar-grid">
             @foreach (var day in _daysOfWeek)
             {
@@ -48,13 +50,24 @@
                 var date = new DateOnly(_currentDate.Year, _currentDate.Month, day);
                 var dayLogs = _logs.Where(l => l.LogDate == date).OrderBy(l => l.Employee?.Name ?? string.Empty, System.StringComparer.OrdinalIgnoreCase).ToList();
                 
-                <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")" @ondblclick="@(() => OpenAddDialog(date))">
+                <div class="calendar-day @(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : "")"
+                     data-calendar-day="@date.ToString("yyyy-MM-dd")"
+                     @ondblclick="@(() => OpenAddDialog(date))"
+                     @oncontextmenu="@((MouseEventArgs args) => OpenDayContextMenu(args, date))"
+                     @oncontextmenu:preventDefault>
                     <div class="day-number">@day</div>
                     <div class="day-content">
                         @foreach (var log in dayLogs)
                         {
                             <MudTooltip Text="@($"{log.Employee?.Name}: {log.SubCategory} - {log.Details}")" Arrow="true" Placement="Placement.Top">
-                                <div class="log-namecard @GetLogCssClass(log)" @onclick="@(() => OpenEditDialog(log))" @onclick:stopPropagation @ondblclick:stopPropagation>
+                                <div class="log-namecard @GetLogCssClass(log)"
+                                     data-log-id="@log.Id"
+                                     @onclick="@(() => OpenEditDialog(log))"
+                                     @onclick:stopPropagation
+                                     @ondblclick:stopPropagation
+                                     @oncontextmenu="@((MouseEventArgs args) => OpenLogContextMenu(args, log))"
+                                     @oncontextmenu:preventDefault
+                                     @oncontextmenu:stopPropagation>
                                     <div class="card-top">
                                         <span class="emp-name">@log.Employee?.Name</span>
                                         @if (log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue)
@@ -76,6 +89,35 @@
                     </div>
                 </div>
             }
+        </div>
+
+        @if (_calendarContextMenu.IsVisible)
+        {
+            <div class="calendar-context-menu"
+                 data-testid="calendar-context-menu"
+                 style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
+                 @onclick:stopPropagation>
+                @if (_calendarContextMenu.Log is not null)
+                {
+                    <button type="button"
+                            class="calendar-context-menu__item"
+                            data-testid="calendar-copy-action"
+                            @onclick="CopyContextMenuLog">
+                        Copy Entry
+                    </button>
+                }
+
+                @if (_calendarContextMenu.TargetDate.HasValue)
+                {
+                    <button type="button"
+                            class="calendar-context-menu__item"
+                            data-testid="calendar-paste-action"
+                            @onclick="PasteContextMenuEntryAsync">
+                        Paste Entry
+                    </button>
+                }
+            </div>
+        }
         </div>
     </MudTabPanel>
 
@@ -282,6 +324,10 @@
         border: 1px solid var(--mud-palette-divider);
     }
 
+    .calendar-surface {
+        position: relative;
+    }
+
     .calendar-header {
         background-color: var(--mud-palette-background-grey);
         padding: 12px;
@@ -395,6 +441,33 @@
     .cat-icon { font-size: 0.8rem !important; }
     .details-icon { font-size: 0.8rem !important; margin-left: auto; opacity: 0.6; }
 
+    .calendar-context-menu {
+        position: fixed;
+        z-index: 1400;
+        min-width: 180px;
+        padding: 0.35rem;
+        background-color: var(--mud-palette-surface);
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    .calendar-context-menu__item {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        padding: 0.55rem 0.75rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font: inherit;
+    }
+
+    .calendar-context-menu__item:hover {
+        background-color: var(--mud-palette-action-default-hover);
+    }
+
     /* Sub-Category Accent Borders using Theme Variables */
     .cat-office { border-left-color: var(--mud-palette-info) !important; }
     .cat-wfh { border-left-color: var(--mud-palette-tertiary) !important; }
@@ -414,6 +487,8 @@
     private bool _needsReviewOnly = false;
     private readonly HashSet<int> _selectedLogIds = [];
     private bool _isDeletingLogs;
+    private CalendarContextMenuState _calendarContextMenu = new();
+    private CopiedCalendarEntry? _copiedEntry;
 
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
     private int _offsetDays => (int)new DateTime(_currentDate.Year, _currentDate.Month, 1).DayOfWeek;
@@ -421,6 +496,7 @@
     private int VisibleSelectedLogCount => FilteredLogs.Count(log => _selectedLogIds.Contains(log.Id));
     private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
     private bool HasPartialVisibleSelection => FilteredLogs.Any(log => _selectedLogIds.Contains(log.Id)) && !AreAllVisibleLogsSelected;
+    private bool HasCopiedEntry => _copiedEntry is not null;
 
     private List<AuditRow> _auditRows = new();
     private string _auditFilter = "All";
@@ -678,6 +754,111 @@
 
     private bool IsLogSelected(int id) => _selectedLogIds.Contains(id);
 
+    private void OpenLogContextMenu(MouseEventArgs args, WorkLog log)
+    {
+        _calendarContextMenu = new CalendarContextMenuState
+        {
+            IsVisible = true,
+            X = args.ClientX,
+            Y = args.ClientY,
+            Log = log
+        };
+    }
+
+    private void OpenDayContextMenu(MouseEventArgs args, DateOnly targetDate)
+    {
+        if (!CanPasteCopiedEntryTo(targetDate))
+        {
+            HideCalendarContextMenu();
+            return;
+        }
+
+        _calendarContextMenu = new CalendarContextMenuState
+        {
+            IsVisible = true,
+            X = args.ClientX,
+            Y = args.ClientY,
+            TargetDate = targetDate
+        };
+    }
+
+    private void HideCalendarContextMenu()
+    {
+        if (_calendarContextMenu.IsVisible)
+        {
+            _calendarContextMenu = new();
+        }
+    }
+
+    private Task CopyContextMenuLog()
+    {
+        if (_calendarContextMenu.Log is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        _copiedEntry = CopiedCalendarEntry.From(_calendarContextMenu.Log);
+        HideCalendarContextMenu();
+        Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
+        return Task.CompletedTask;
+    }
+
+    private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
+        _copiedEntry is not null && _copiedEntry.SourceDate != targetDate;
+
+    private async Task PasteContextMenuEntryAsync()
+    {
+        if (_calendarContextMenu.TargetDate is not DateOnly targetDate)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add("Select a day to paste into.", Severity.Warning);
+            return;
+        }
+
+        if (_copiedEntry is null)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add("Copy an entry before pasting.", Severity.Warning);
+            return;
+        }
+
+        if (_copiedEntry.SourceDate == targetDate)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add("Choose a different day to paste this entry.", Severity.Warning);
+            return;
+        }
+
+        var pastedLog = new WorkLog
+        {
+            LogDate = targetDate,
+            LogTime = _copiedEntry.LogTime,
+            EmployeeId = _copiedEntry.EmployeeId,
+            MainCategory = _copiedEntry.MainCategory,
+            SubCategory = _copiedEntry.SubCategory,
+            Details = _copiedEntry.Details,
+            OriginalDetails = _copiedEntry.OriginalDetails,
+            IncidentId = _copiedEntry.IncidentId,
+            EarnsCompTime = _copiedEntry.EarnsCompTime,
+            UsesCompTime = _copiedEntry.UsesCompTime,
+            Hours = _copiedEntry.Hours
+        };
+
+        try
+        {
+            await WorkLogService.AddWorkLogAsync(pastedLog);
+            await LoadData();
+            await LoadAuditData();
+            HideCalendarContextMenu();
+            Snackbar.Add($"Pasted entry for {_copiedEntry.EmployeeName} to {targetDate:MM/dd/yyyy}", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            HideCalendarContextMenu();
+            Snackbar.Add($"Could not paste entry: {ex.Message}", Severity.Error);
+        }
+    }
+
     private Task ToggleLogSelection(int id, bool isSelected)
     {
         if (isSelected)
@@ -933,5 +1114,48 @@
         var fileName = $"{_currentDate:yyyy-MM}.md";
         await JSRuntime.InvokeVoidAsync("downloadFileFromText", fileName, sb.ToString());
         Snackbar.Add($"Exported {fileName}", Severity.Success);
+    }
+
+    private sealed class CalendarContextMenuState
+    {
+        public bool IsVisible { get; init; }
+        public double X { get; init; }
+        public double Y { get; init; }
+        public WorkLog? Log { get; init; }
+        public DateOnly? TargetDate { get; init; }
+    }
+
+    private sealed class CopiedCalendarEntry
+    {
+        public required int SourceLogId { get; init; }
+        public DateOnly? SourceDate { get; init; }
+        public TimeOnly? LogTime { get; init; }
+        public required int EmployeeId { get; init; }
+        public required string EmployeeName { get; init; }
+        public required string MainCategory { get; init; }
+        public required string SubCategory { get; init; }
+        public string? Details { get; init; }
+        public string? OriginalDetails { get; init; }
+        public int? IncidentId { get; init; }
+        public bool EarnsCompTime { get; init; }
+        public bool UsesCompTime { get; init; }
+        public decimal Hours { get; init; }
+
+        public static CopiedCalendarEntry From(WorkLog log) => new()
+        {
+            SourceLogId = log.Id,
+            SourceDate = log.LogDate,
+            LogTime = log.LogTime,
+            EmployeeId = log.EmployeeId,
+            EmployeeName = log.Employee?.Name ?? $"Employee {log.EmployeeId}",
+            MainCategory = log.MainCategory,
+            SubCategory = log.SubCategory,
+            Details = log.Details,
+            OriginalDetails = log.OriginalDetails,
+            IncidentId = log.IncidentId,
+            EarnsCompTime = log.EarnsCompTime,
+            UsesCompTime = log.UsesCompTime,
+            Hours = log.Hours
+        };
     }
 }
