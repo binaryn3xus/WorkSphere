@@ -89,17 +89,36 @@
                     <MudMenuItem OnClick="OpenCompanyHolidayDialog" Icon="@Icons.Material.Filled.Celebration" IconColor="Color.Warning">Company Holiday</MudMenuItem>
                 </MudMenu>
             </MudButtonGroup>
+            @if (VisibleSelectedLogCount > 0)
+            {
+                <MudButton Color="Color.Error"
+                           Variant="Variant.Outlined"
+                           StartIcon="@Icons.Material.Filled.Delete"
+                           OnClick="DeleteSelectedLogs"
+                           Disabled="_isDeletingLogs"
+                           Class="ml-2">
+                    Delete Selected (@VisibleSelectedLogCount)
+                </MudButton>
+            }
             <MudSpacer />
             <MudCheckBox T="bool" @bind-Value="_needsReviewOnly" Label="Needs Review" Color="Color.Warning" />
         </MudStack>
 
-        <MudTable Items="@_logs" Filter="new Func<WorkLog, bool>(FilterFunc)" RowStyleFunc="GetRowStyle" Dense="true" Hover="true">
+        <MudTable Items="@FilteredLogs" RowStyleFunc="GetRowStyle" Dense="true" Hover="true">
             <ToolBarContent>
                 <MudText Typo="Typo.h6">Daily Records</MudText>
                 <MudSpacer />
                 <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
             </ToolBarContent>
             <HeaderContent>
+                <MudTh>
+                    <MudCheckBox T="bool"
+                                 Value="@AreAllVisibleLogsSelected"
+                                 ValueChanged="ToggleSelectAllVisibleLogs"
+                                 Indeterminate="@HasPartialVisibleSelection"
+                                 Disabled="!FilteredLogs.Any() || _isDeletingLogs"
+                                 aria-label="Select all visible logs" />
+                </MudTh>
                 <MudTh>Date</MudTh>
                 <MudTh>Time</MudTh>
                 <MudTh>Employee</MudTh>
@@ -109,6 +128,13 @@
                 <MudTh Style="width: 100px;">Actions</MudTh>
             </HeaderContent>
             <RowTemplate>
+                <MudTd DataLabel="Select">
+                    <MudCheckBox T="bool"
+                                 Value="@IsLogSelected(context.Id)"
+                                 ValueChanged="@((bool selected) => ToggleLogSelection(context.Id, selected))"
+                                 Disabled="_isDeletingLogs"
+                                 aria-label="@($"Select log {context.Id}")" />
+                </MudTd>
                 <MudTd DataLabel="Date">@context.LogDate?.ToString("MM/dd/yyyy")</MudTd>
                 <MudTd DataLabel="Time">@context.LogTime?.ToString("HH:mm")</MudTd>
                 <MudTd DataLabel="Employee">@context.Employee?.Name</MudTd>
@@ -386,9 +412,15 @@
     private string[] _daysOfWeek = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
     private string _searchString = "";
     private bool _needsReviewOnly = false;
+    private readonly HashSet<int> _selectedLogIds = [];
+    private bool _isDeletingLogs;
 
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
     private int _offsetDays => (int)new DateTime(_currentDate.Year, _currentDate.Month, 1).DayOfWeek;
+    private IEnumerable<WorkLog> FilteredLogs => _logs.Where(FilterFunc);
+    private int VisibleSelectedLogCount => FilteredLogs.Count(log => _selectedLogIds.Contains(log.Id));
+    private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
+    private bool HasPartialVisibleSelection => FilteredLogs.Any(log => _selectedLogIds.Contains(log.Id)) && !AreAllVisibleLogsSelected;
 
     private List<AuditRow> _auditRows = new();
     private string _auditFilter = "All";
@@ -415,6 +447,7 @@
     private async Task LoadData()
     {
         _logs = (await WorkLogService.GetWorkLogsAsync()).ToList();
+        _selectedLogIds.RemoveWhere(id => _logs.All(log => log.Id != id));
     }
 
     private async Task LoadAuditData()
@@ -643,6 +676,41 @@
                (log.OriginalDetails?.ToLower().Contains(search) ?? false);
     }
 
+    private bool IsLogSelected(int id) => _selectedLogIds.Contains(id);
+
+    private Task ToggleLogSelection(int id, bool isSelected)
+    {
+        if (isSelected)
+        {
+            _selectedLogIds.Add(id);
+        }
+        else
+        {
+            _selectedLogIds.Remove(id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleSelectAllVisibleLogs(bool selectAll)
+    {
+        foreach (var logId in FilteredLogs.Select(log => log.Id))
+        {
+            if (selectAll)
+            {
+                _selectedLogIds.Add(logId);
+            }
+            else
+            {
+                _selectedLogIds.Remove(logId);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ClearSelectedLogs() => _selectedLogIds.Clear();
+
     private async Task OpenAddDialog(DateOnly? presetDate)
     {
         var options = new DialogOptions { CloseOnEscapeKey = true };
@@ -747,10 +815,65 @@
         bool? result = await DialogService.ShowMessageBoxAsync("Delete Entry", "Are you sure?", yesText:"Delete!", cancelText:"Cancel");
         if (result == true)
         {
-            await WorkLogService.DeleteWorkLogAsync(id);
-            await LoadData();
-            await LoadAuditData();
-            Snackbar.Add("Log deleted", Severity.Success);
+            try
+            {
+                _isDeletingLogs = true;
+                await WorkLogService.DeleteWorkLogAsync(id);
+                _selectedLogIds.Remove(id);
+                await LoadData();
+                await LoadAuditData();
+                Snackbar.Add("Log deleted", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Could not delete log: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isDeletingLogs = false;
+            }
+        }
+    }
+
+    private async Task DeleteSelectedLogs()
+    {
+        var selectedIds = FilteredLogs
+            .Where(log => _selectedLogIds.Contains(log.Id))
+            .Select(log => log.Id)
+            .Distinct()
+            .ToArray();
+
+        if (selectedIds.Length == 0)
+        {
+            Snackbar.Add("Select at least one visible log to delete.", Severity.Warning);
+            return;
+        }
+
+        bool? result = await DialogService.ShowMessageBoxAsync(
+            "Delete Selected Entries",
+            $"Are you sure you want to delete {selectedIds.Length} selected entr{(selectedIds.Length == 1 ? "y" : "ies")}?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                _isDeletingLogs = true;
+                var deletedCount = await WorkLogService.DeleteWorkLogsAsync(selectedIds);
+                await LoadData();
+                await LoadAuditData();
+                ClearSelectedLogs();
+                Snackbar.Add($"Deleted {deletedCount} log entr{(deletedCount == 1 ? "y" : "ies")}", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Could not delete selected logs: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isDeletingLogs = false;
+            }
         }
     }
 
