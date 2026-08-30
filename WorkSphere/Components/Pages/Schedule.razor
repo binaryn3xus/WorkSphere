@@ -105,6 +105,16 @@
                             @onclick="CopyContextMenuLog">
                         Copy Entry
                     </button>
+
+                    @if (CanDeleteCalendarContextMenuLog)
+                    {
+                        <button type="button"
+                                class="calendar-context-menu__item calendar-context-menu__item--danger"
+                                data-testid="calendar-delete-action"
+                                @onclick="DeleteContextMenuLogAsync">
+                            Delete Entry
+                        </button>
+                    }
                 }
 
                 @if (_calendarContextMenu.TargetDate.HasValue)
@@ -468,6 +478,14 @@
         background-color: var(--mud-palette-action-default-hover);
     }
 
+    .calendar-context-menu__item--danger {
+        color: var(--mud-palette-error);
+    }
+
+    .calendar-context-menu__item--danger:hover {
+        background-color: rgba(var(--mud-palette-error-rgb), 0.12);
+    }
+
     /* Sub-Category Accent Borders using Theme Variables */
     .cat-office { border-left-color: var(--mud-palette-info) !important; }
     .cat-wfh { border-left-color: var(--mud-palette-tertiary) !important; }
@@ -497,6 +515,10 @@
     private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
     private bool HasPartialVisibleSelection => FilteredLogs.Any(log => _selectedLogIds.Contains(log.Id)) && !AreAllVisibleLogsSelected;
     private bool HasCopiedEntry => _copiedEntry is not null;
+    private bool CanDeleteCalendarContextMenuLog =>
+        _calendarContextMenu.Log is { Id: > 0 } log &&
+        !_isDeletingLogs &&
+        _logs.Any(existingLog => existingLog.Id == log.Id);
 
     private List<AuditRow> _auditRows = new();
     private string _auditFilter = "All";
@@ -801,6 +823,18 @@
         HideCalendarContextMenu();
         Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
         return Task.CompletedTask;
+    }
+
+    private async Task DeleteContextMenuLogAsync()
+    {
+        if (!CanDeleteCalendarContextMenuLog || _calendarContextMenu.Log is not { Id: > 0 } log)
+        {
+            HideCalendarContextMenu();
+            return;
+        }
+
+        HideCalendarContextMenu();
+        await DeleteLog(log.Id);
     }
 
     private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
