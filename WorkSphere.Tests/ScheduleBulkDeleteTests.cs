@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,6 +45,57 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
         ToggleRowSelection(cut, logId: 1, isSelected: true);
 
         cut.WaitForAssertion(() => Assert.Contains("Delete Selected (1)", cut.Markup));
+    }
+
+    [Fact]
+    public void CalendarEntryContextMenu_RightClickRendersCopyAction()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderCalendar();
+
+        OpenCalendarContextMenu(cut, logId: 1);
+
+        cut.WaitForAssertion(() => Assert.Contains("Copy Entry", cut.Markup));
+    }
+
+    [Fact]
+    public void CalendarEntryContextMenu_CopyCapturesIndependentEntrySnapshot()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderCalendar();
+
+        OpenCalendarContextMenu(cut, logId: 1);
+        cut.Find("[data-testid='calendar-copy-action']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            harness.SnackbarMock.Verify(snackbar => snackbar.Add("Copied entry for Employee 1", Severity.Success, It.IsAny<Action<SnackbarOptions>>(), It.IsAny<string?>()), Times.Once);
+
+            var copiedEntry = GetCopiedEntry(cut);
+            Assert.NotNull(copiedEntry);
+            Assert.Equal(1, GetProperty<int>(copiedEntry!, "SourceLogId"));
+            Assert.Equal(new DateOnly(2026, 8, 1), GetProperty<DateOnly?>(copiedEntry!, "SourceDate"));
+            Assert.Equal(new TimeOnly(9, 0), GetProperty<TimeOnly?>(copiedEntry!, "LogTime"));
+            Assert.Equal(101, GetProperty<int>(copiedEntry!, "EmployeeId"));
+            Assert.Equal("Employee 1", GetProperty<string>(copiedEntry!, "EmployeeName"));
+            Assert.Equal("Work", GetProperty<string>(copiedEntry!, "MainCategory"));
+            Assert.Equal("In-Office", GetProperty<string>(copiedEntry!, "SubCategory"));
+            Assert.Equal("Details 1", GetProperty<string>(copiedEntry!, "Details"));
+            Assert.Equal("Details 1", GetProperty<string>(copiedEntry!, "OriginalDetails"));
+        });
+
+        initialLogs[0].Details = "Mutated after copy";
+        initialLogs[0].OriginalDetails = "Mutated after copy";
+
+        var copiedAfterMutation = GetCopiedEntry(cut);
+        Assert.NotNull(copiedAfterMutation);
+        Assert.Equal("Details 1", GetProperty<string>(copiedAfterMutation!, "Details"));
+        Assert.Equal("Details 1", GetProperty<string>(copiedAfterMutation!, "OriginalDetails"));
+        Assert.Empty(cut.FindAll("[data-testid='calendar-context-menu']"));
     }
 
     [Fact]
@@ -140,6 +193,24 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
     private static IReadOnlyList<IElement> FindRowSelectionInputs(IRenderedComponent<Schedule> cut) =>
         cut.FindAll("input[aria-label^='Select log']");
 
+    private static void OpenCalendarContextMenu(IRenderedComponent<Schedule> cut, int logId)
+    {
+        cut.Find($"[data-log-id='{logId}']").TriggerEvent("oncontextmenu", new MouseEventArgs
+        {
+            Button = 2,
+            ClientX = 120,
+            ClientY = 180
+        });
+    }
+
+    private static object? GetCopiedEntry(IRenderedComponent<Schedule> cut) =>
+        typeof(Schedule)
+            .GetField("_copiedEntry", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(cut.Instance);
+
+    private static T GetProperty<T>(object instance, string propertyName) =>
+        (T)instance.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)!.GetValue(instance)!;
+
     private sealed class ScheduleTestHarness : TestContext
     {
         private readonly Mock<IDialogService> _dialogServiceMock = new();
@@ -223,6 +294,16 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
                 .Single(tab => tab.TextContent.Contains("List View", StringComparison.Ordinal))
                 .Click();
             component.WaitForAssertion(() => Assert.Contains("Daily Records", component.Markup));
+            return component;
+        }
+
+        public IRenderedComponent<Schedule> RenderCalendar()
+        {
+            RenderComponent<MudThemeProvider>();
+            RenderComponent<MudPopoverProvider>();
+            RenderComponent<MudDialogProvider>();
+            var component = RenderComponent<Schedule>();
+            component.WaitForAssertion(() => Assert.Contains("calendar-grid", component.Markup));
             return component;
         }
     }
