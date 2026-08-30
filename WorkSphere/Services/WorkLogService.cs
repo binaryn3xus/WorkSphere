@@ -313,6 +313,21 @@ public class WorkLogService
         await connection.ExecuteAsync(sql, new { Id = id });
     }
 
+    public async Task<int> DeleteWorkLogsAsync(IEnumerable<int> ids)
+    {
+        var distinctIds = ids?.Distinct().ToArray() ?? [];
+        if (distinctIds.Length == 0)
+        {
+            return 0;
+        }
+
+        _logger.LogInformation("Deleting {Count} work logs", distinctIds.Length);
+        const string sql = "DELETE FROM WorkLogs WHERE Id = ANY(@Ids)";
+
+        using var connection = CreateConnection();
+        return await connection.ExecuteAsync(sql, new { Ids = distinctIds });
+    }
+
     public async Task<IEnumerable<CategoryStatDto>> GetMainCategoryStatsAsync()
     {
         const string sql = @"
