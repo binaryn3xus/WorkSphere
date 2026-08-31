@@ -301,6 +301,10 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
     [InlineData(1270, 180, 180, 88, 1280, 720, 1092, 180)]
     [InlineData(120, 715, 180, 88, 1280, 720, 120, 624)]
     [InlineData(-12, -20, 180, 88, 1280, 720, 8, 8)]
+    [InlineData(1270, -20, 180, 88, 1280, 720, 1092, 8)]
+    [InlineData(-12, 715, 180, 88, 1280, 720, 8, 624)]
+    [InlineData(1270, 715, 180, 88, 1280, 720, 1092, 624)]
+    [InlineData(640, 360, 1800, 900, 1280, 720, 8, 8)]
     public void CalculateCalendarContextMenuPosition_ClampsMenuWithinViewport(
         double requestedX,
         double requestedY,
