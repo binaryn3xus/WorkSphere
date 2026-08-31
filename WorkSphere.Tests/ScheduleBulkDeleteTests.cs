@@ -296,6 +296,31 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
         });
     }
 
+    [Theory]
+    [InlineData(120, 180, 180, 88, 1280, 720, 120, 180)]
+    [InlineData(1270, 180, 180, 88, 1280, 720, 1092, 180)]
+    [InlineData(120, 715, 180, 88, 1280, 720, 120, 624)]
+    [InlineData(-12, -20, 180, 88, 1280, 720, 8, 8)]
+    public void CalculateCalendarContextMenuPosition_ClampsMenuWithinViewport(
+        double requestedX,
+        double requestedY,
+        double menuWidth,
+        double menuHeight,
+        double viewportWidth,
+        double viewportHeight,
+        double expectedX,
+        double expectedY)
+    {
+        var method = typeof(Schedule).GetMethod("CalculateCalendarContextMenuPosition", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        var result = method!.Invoke(null, [requestedX, requestedY, menuWidth, menuHeight, viewportWidth, viewportHeight, 8d]);
+        Assert.NotNull(result);
+
+        Assert.Equal(expectedX, GetProperty<double>(result!, "X"));
+        Assert.Equal(expectedY, GetProperty<double>(result!, "Y"));
+    }
+
     [Fact]
     public void BulkDelete_Confirmed_DeletesSelectedLogsRefreshesDataAndClearsSelection()
     {

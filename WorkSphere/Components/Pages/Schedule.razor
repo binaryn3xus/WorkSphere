@@ -94,6 +94,7 @@
         @if (_calendarContextMenu.IsVisible)
         {
             <div class="calendar-context-menu"
+                 @ref="_calendarContextMenuElement"
                  data-testid="calendar-context-menu"
                  style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
                  @onclick:stopPropagation>
@@ -508,6 +509,8 @@
     private readonly HashSet<int> _selectedLogIds = [];
     private bool _isDeletingLogs;
     private CalendarContextMenuState _calendarContextMenu = new();
+    private ElementReference _calendarContextMenuElement;
+    private bool _repositionCalendarContextMenuOnRender;
     private CopiedCalendarEntry? _copiedEntry;
 
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
@@ -542,6 +545,47 @@
     {
         await LoadData();
         await LoadAuditData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_calendarContextMenu.IsVisible || !_repositionCalendarContextMenuOnRender)
+        {
+            return;
+        }
+
+        _repositionCalendarContextMenuOnRender = false;
+
+        var measurements = await JSRuntime.InvokeAsync<ContextMenuViewportMeasurements?>(
+            "measureCalendarContextMenuPosition",
+            _calendarContextMenuElement);
+
+        if (measurements is null)
+        {
+            return;
+        }
+
+        var positionedMenu = CalculateCalendarContextMenuPosition(
+            _calendarContextMenu.X,
+            _calendarContextMenu.Y,
+            measurements.MenuWidth,
+            measurements.MenuHeight,
+            measurements.ViewportWidth,
+            measurements.ViewportHeight,
+            ContextMenuViewportPadding);
+
+        if (positionedMenu.X.Equals(_calendarContextMenu.X) && positionedMenu.Y.Equals(_calendarContextMenu.Y))
+        {
+            return;
+        }
+
+        _calendarContextMenu = _calendarContextMenu with
+        {
+            X = positionedMenu.X,
+            Y = positionedMenu.Y
+        };
+
+        StateHasChanged();
     }
 
     private async Task LoadData()
@@ -787,6 +831,8 @@
             Y = args.ClientY,
             Log = log
         };
+
+        _repositionCalendarContextMenuOnRender = true;
     }
 
     private void OpenDayContextMenu(MouseEventArgs args, DateOnly targetDate)
@@ -804,6 +850,8 @@
             Y = args.ClientY,
             TargetDate = targetDate
         };
+
+        _repositionCalendarContextMenuOnRender = true;
     }
 
     private void HideCalendarContextMenu()
@@ -811,6 +859,7 @@
         if (_calendarContextMenu.IsVisible)
         {
             _calendarContextMenu = new();
+            _repositionCalendarContextMenuOnRender = false;
         }
     }
 
@@ -1180,13 +1229,48 @@
         Snackbar.Add($"Exported {fileName}", Severity.Success);
     }
 
-    private sealed class CalendarContextMenuState
+    private const double ContextMenuViewportPadding = 8;
+
+    private static ContextMenuViewportPosition CalculateCalendarContextMenuPosition(
+        double requestedX,
+        double requestedY,
+        double menuWidth,
+        double menuHeight,
+        double viewportWidth,
+        double viewportHeight,
+        double padding)
+    {
+        var maxX = Math.Max(padding, viewportWidth - menuWidth - padding);
+        var maxY = Math.Max(padding, viewportHeight - menuHeight - padding);
+
+        return new ContextMenuViewportPosition
+        {
+            X = Math.Min(Math.Max(requestedX, padding), maxX),
+            Y = Math.Min(Math.Max(requestedY, padding), maxY)
+        };
+    }
+
+    private sealed record CalendarContextMenuState
     {
         public bool IsVisible { get; init; }
         public double X { get; init; }
         public double Y { get; init; }
         public WorkLog? Log { get; init; }
         public DateOnly? TargetDate { get; init; }
+    }
+
+    private sealed class ContextMenuViewportPosition
+    {
+        public double X { get; init; }
+        public double Y { get; init; }
+    }
+
+    private sealed class ContextMenuViewportMeasurements
+    {
+        public double MenuWidth { get; init; }
+        public double MenuHeight { get; init; }
+        public double ViewportWidth { get; init; }
+        public double ViewportHeight { get; init; }
     }
 
     private sealed class CopiedCalendarEntry
