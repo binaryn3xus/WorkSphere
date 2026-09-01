@@ -31,6 +31,28 @@
         window.getLocalTimezoneOffset = () => {
             return new Date().getTimezoneOffset();
         };
+        window.measureCalendarContextMenuPosition = (element) => {
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+            if (!element) {
+                return {
+                    menuWidth: 0,
+                    menuHeight: 0,
+                    viewportWidth,
+                    viewportHeight
+                };
+            }
+
+            const rect = element.getBoundingClientRect();
+
+            return {
+                menuWidth: rect.width,
+                menuHeight: rect.height,
+                viewportWidth,
+                viewportHeight
+            };
+        };
     </script>
 </body>
 

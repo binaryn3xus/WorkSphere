@@ -94,6 +94,7 @@
         @if (_calendarContextMenu.IsVisible)
         {
             <div class="calendar-context-menu"
+                 @ref="_calendarContextMenuElement"
                  data-testid="calendar-context-menu"
                  style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
                  @onclick:stopPropagation>
@@ -105,6 +106,16 @@
                             @onclick="CopyContextMenuLog">
                         Copy Entry
                     </button>
+
+                    @if (CanDeleteCalendarContextMenuLog)
+                    {
+                        <button type="button"
+                                class="calendar-context-menu__item calendar-context-menu__item--danger"
+                                data-testid="calendar-delete-action"
+                                @onclick="DeleteContextMenuLogAsync">
+                            Delete Entry
+                        </button>
+                    }
                 }
 
                 @if (_calendarContextMenu.TargetDate.HasValue)
@@ -450,6 +461,7 @@
         border: 1px solid var(--mud-palette-divider);
         border-radius: 8px;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        pointer-events: none;
     }
 
     .calendar-context-menu__item {
@@ -462,10 +474,19 @@
         border-radius: 6px;
         cursor: pointer;
         font: inherit;
+        pointer-events: auto;
     }
 
     .calendar-context-menu__item:hover {
         background-color: var(--mud-palette-action-default-hover);
+    }
+
+    .calendar-context-menu__item--danger {
+        color: var(--mud-palette-error);
+    }
+
+    .calendar-context-menu__item--danger:hover {
+        background-color: rgba(var(--mud-palette-error-rgb), 0.12);
     }
 
     /* Sub-Category Accent Borders using Theme Variables */
@@ -488,6 +509,8 @@
     private readonly HashSet<int> _selectedLogIds = [];
     private bool _isDeletingLogs;
     private CalendarContextMenuState _calendarContextMenu = new();
+    private ElementReference _calendarContextMenuElement;
+    private bool _repositionCalendarContextMenuOnRender;
     private CopiedCalendarEntry? _copiedEntry;
 
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
@@ -497,6 +520,10 @@
     private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
     private bool HasPartialVisibleSelection => FilteredLogs.Any(log => _selectedLogIds.Contains(log.Id)) && !AreAllVisibleLogsSelected;
     private bool HasCopiedEntry => _copiedEntry is not null;
+    private bool CanDeleteCalendarContextMenuLog =>
+        _calendarContextMenu.Log is { Id: > 0 } log &&
+        !_isDeletingLogs &&
+        _logs.Any(existingLog => existingLog.Id == log.Id);
 
     private List<AuditRow> _auditRows = new();
     private string _auditFilter = "All";
@@ -518,6 +545,47 @@
     {
         await LoadData();
         await LoadAuditData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_calendarContextMenu.IsVisible || !_repositionCalendarContextMenuOnRender)
+        {
+            return;
+        }
+
+        _repositionCalendarContextMenuOnRender = false;
+
+        var measurements = await JSRuntime.InvokeAsync<ContextMenuViewportMeasurements?>(
+            "measureCalendarContextMenuPosition",
+            _calendarContextMenuElement);
+
+        if (measurements is null)
+        {
+            return;
+        }
+
+        var positionedMenu = CalculateCalendarContextMenuPosition(
+            _calendarContextMenu.X,
+            _calendarContextMenu.Y,
+            measurements.MenuWidth,
+            measurements.MenuHeight,
+            measurements.ViewportWidth,
+            measurements.ViewportHeight,
+            ContextMenuViewportPadding);
+
+        if (positionedMenu.X.Equals(_calendarContextMenu.X) && positionedMenu.Y.Equals(_calendarContextMenu.Y))
+        {
+            return;
+        }
+
+        _calendarContextMenu = _calendarContextMenu with
+        {
+            X = positionedMenu.X,
+            Y = positionedMenu.Y
+        };
+
+        StateHasChanged();
     }
 
     private async Task LoadData()
@@ -763,6 +831,8 @@
             Y = args.ClientY,
             Log = log
         };
+
+        _repositionCalendarContextMenuOnRender = true;
     }
 
     private void OpenDayContextMenu(MouseEventArgs args, DateOnly targetDate)
@@ -780,6 +850,8 @@
             Y = args.ClientY,
             TargetDate = targetDate
         };
+
+        _repositionCalendarContextMenuOnRender = true;
     }
 
     private void HideCalendarContextMenu()
@@ -787,6 +859,7 @@
         if (_calendarContextMenu.IsVisible)
         {
             _calendarContextMenu = new();
+            _repositionCalendarContextMenuOnRender = false;
         }
     }
 
@@ -801,6 +874,18 @@
         HideCalendarContextMenu();
         Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
         return Task.CompletedTask;
+    }
+
+    private async Task DeleteContextMenuLogAsync()
+    {
+        if (!CanDeleteCalendarContextMenuLog || _calendarContextMenu.Log is not { Id: > 0 } log)
+        {
+            HideCalendarContextMenu();
+            return;
+        }
+
+        HideCalendarContextMenu();
+        await DeleteLog(log, isCalendarEntry: true);
     }
 
     private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
@@ -991,16 +1076,28 @@
         }
     }
 
-    private async Task DeleteLog(int id)
+    private Task DeleteLog(int id) => DeleteLog(_logs.FirstOrDefault(log => log.Id == id));
+
+    private async Task DeleteLog(WorkLog? log, bool isCalendarEntry = false)
     {
-        bool? result = await DialogService.ShowMessageBoxAsync("Delete Entry", "Are you sure?", yesText:"Delete!", cancelText:"Cancel");
+        if (log is not { Id: > 0 })
+        {
+            return;
+        }
+
+        bool? result = await DialogService.ShowMessageBoxAsync(
+            isCalendarEntry ? "Delete Calendar Entry" : "Delete Entry",
+            GetDeleteLogConfirmationMessage(log, isCalendarEntry),
+            yesText: "Delete",
+            cancelText: "Cancel");
+
         if (result == true)
         {
             try
             {
                 _isDeletingLogs = true;
-                await WorkLogService.DeleteWorkLogAsync(id);
-                _selectedLogIds.Remove(id);
+                await WorkLogService.DeleteWorkLogAsync(log.Id);
+                _selectedLogIds.Remove(log.Id);
                 await LoadData();
                 await LoadAuditData();
                 Snackbar.Add("Log deleted", Severity.Success);
@@ -1014,6 +1111,22 @@
                 _isDeletingLogs = false;
             }
         }
+    }
+
+    private static string GetDeleteLogConfirmationMessage(WorkLog log, bool isCalendarEntry)
+    {
+        if (!isCalendarEntry)
+        {
+            return "Are you sure you want to delete this work log?";
+        }
+
+        var employeeName = string.IsNullOrWhiteSpace(log.Employee?.Name)
+            ? "this employee"
+            : log.Employee.Name;
+
+        var dateText = log.LogDate?.ToString("MM/dd/yyyy") ?? "the selected day";
+
+        return $"Are you sure you want to delete the calendar entry for {employeeName} on {dateText}?";
     }
 
     private async Task DeleteSelectedLogs()
@@ -1116,13 +1229,48 @@
         Snackbar.Add($"Exported {fileName}", Severity.Success);
     }
 
-    private sealed class CalendarContextMenuState
+    private const double ContextMenuViewportPadding = 8;
+
+    private static ContextMenuViewportPosition CalculateCalendarContextMenuPosition(
+        double requestedX,
+        double requestedY,
+        double menuWidth,
+        double menuHeight,
+        double viewportWidth,
+        double viewportHeight,
+        double padding)
+    {
+        var maxX = Math.Max(padding, viewportWidth - menuWidth - padding);
+        var maxY = Math.Max(padding, viewportHeight - menuHeight - padding);
+
+        return new ContextMenuViewportPosition
+        {
+            X = Math.Min(Math.Max(requestedX, padding), maxX),
+            Y = Math.Min(Math.Max(requestedY, padding), maxY)
+        };
+    }
+
+    private sealed record CalendarContextMenuState
     {
         public bool IsVisible { get; init; }
         public double X { get; init; }
         public double Y { get; init; }
         public WorkLog? Log { get; init; }
         public DateOnly? TargetDate { get; init; }
+    }
+
+    private sealed class ContextMenuViewportPosition
+    {
+        public double X { get; init; }
+        public double Y { get; init; }
+    }
+
+    private sealed class ContextMenuViewportMeasurements
+    {
+        public double MenuWidth { get; init; }
+        public double MenuHeight { get; init; }
+        public double ViewportWidth { get; init; }
+        public double ViewportHeight { get; init; }
     }
 
     private sealed class CopiedCalendarEntry
