@@ -19,12 +19,13 @@
 <MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Primary">
     @* --- CALENDAR TAB --- *@
     <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" />
-            <MudText Typo="Typo.h5" Class="mx-4" Style="min-width: 200px; text-align: center;">@_currentDate.ToString("MMMM yyyy")</MudText>
-            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
-            <MudSpacer />
-            <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
+        <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4 schedule-calendar-toolbar">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="schedule-calendar-navigation">
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" aria-label="Previous month" />
+                <MudText Typo="Typo.h5" Class="schedule-calendar-month-label">@_currentDate.ToString("MMMM yyyy")</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" aria-label="Next month" />
+            </MudStack>
+            <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled" Class="schedule-calendar-actions">
                 <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
                 <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                     <MudMenuItem OnClick="OpenRangeDialog" Icon="@Icons.Material.Filled.DateRange" IconColor="Color.Info">Add Date Range</MudMenuItem>
@@ -34,7 +35,75 @@
         </MudStack>
 
         <div class="calendar-surface" @onclick="HideCalendarContextMenu">
-        <div class="calendar-grid">
+            <div class="d-block d-sm-none" data-testid="mobile-calendar-agenda">
+                <MudStack Spacing="2" Class="mobile-calendar-agenda">
+                    @foreach (var date in DaysInCurrentMonth)
+                    {
+                        var dayLogs = GetLogsForDate(date).ToList();
+
+                        <MudPaper Elevation="0"
+                                  Class="@($"mobile-calendar-day-card {(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : string.Empty)}")"
+                                  data-mobile-calendar-day="@date.ToString("yyyy-MM-dd")">
+                            <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@date.ToString("dddd, MMMM d")</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@GetMobileDaySummary(dayLogs.Count)</MudText>
+                                </MudStack>
+                                <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Spacing="1" Class="mobile-calendar-day-actions">
+                                    @if (date == DateOnly.FromDateTime(DateTime.Today))
+                                    {
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">Today</MudChip>
+                                    }
+                                    <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenAddDialog(date))">Add</MudButton>
+                                    @if (CanPasteCopiedEntryTo(date))
+                                    {
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ContentPaste" OnClick="@(() => PasteCopiedEntryToDateAsync(date))">Paste</MudButton>
+                                    }
+                                </MudStack>
+                            </MudStack>
+
+                            @if (dayLogs.Count == 0)
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary mobile-calendar-empty">No schedule entries for this day.</MudText>
+                            }
+                            else
+                            {
+                                <MudStack Spacing="2">
+                                    @foreach (var log in dayLogs)
+                                    {
+                                        <MudPaper Elevation="0" Class="@($"mobile-log-card {GetLogCssClass(log)}")" data-mobile-log-id="@log.Id">
+                                            <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Class="mb-2" Spacing="2">
+                                                <MudStack Spacing="0" Class="mobile-log-primary">
+                                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@log.Employee?.Name</MudText>
+                                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@GetMobileLogMeta(log)</MudText>
+                                                </MudStack>
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetLogColor(log)" Icon="@GetLogIcon(log)">@log.SubCategory</MudChip>
+                                            </MudStack>
+
+                                            @if (!string.IsNullOrWhiteSpace(log.Details))
+                                            {
+                                                <MudText Typo="Typo.body2" Class="mobile-log-details">@log.Details</MudText>
+                                            }
+
+                                            <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mt-2">
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@log.MainCategory</MudText>
+                                                <MudStack Row="true" Spacing="0" Class="mobile-log-actions">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Medium" aria-label="@($"Edit mobile log {log.Id}")" OnClick="@(() => OpenEditDialog(log))" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Secondary" Size="Size.Medium" aria-label="@($"Copy mobile log {log.Id}")" OnClick="@(() => CopyLog(log))" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Medium" aria-label="@($"Delete mobile log {log.Id}")" OnClick="@(() => DeleteLog(log, true))" />
+                                                </MudStack>
+                                            </MudStack>
+                                        </MudPaper>
+                                    }
+                                </MudStack>
+                            }
+                        </MudPaper>
+                    }
+                </MudStack>
+            </div>
+
+            <div class="d-none d-sm-block">
+                <div class="calendar-grid">
             @foreach (var day in _daysOfWeek)
             {
                 <div class="calendar-header">@day</div>
@@ -91,50 +160,51 @@
             }
         </div>
 
-        @if (_calendarContextMenu.IsVisible)
-        {
-            <div class="calendar-context-menu"
-                 @ref="_calendarContextMenuElement"
-                 data-testid="calendar-context-menu"
-                 style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
-                 @onclick:stopPropagation>
-                @if (_calendarContextMenu.Log is not null)
+                @if (_calendarContextMenu.IsVisible)
                 {
-                    <button type="button"
-                            class="calendar-context-menu__item"
-                            data-testid="calendar-copy-action"
-                            @onclick="CopyContextMenuLog">
-                        Copy Entry
-                    </button>
+                    <div class="calendar-context-menu"
+                         @ref="_calendarContextMenuElement"
+                         data-testid="calendar-context-menu"
+                         style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
+                         @onclick:stopPropagation>
+                        @if (_calendarContextMenu.Log is not null)
+                        {
+                            <button type="button"
+                                    class="calendar-context-menu__item"
+                                    data-testid="calendar-copy-action"
+                                    @onclick="CopyContextMenuLog">
+                                Copy Entry
+                            </button>
 
-                    @if (CanDeleteCalendarContextMenuLog)
-                    {
-                        <button type="button"
-                                class="calendar-context-menu__item calendar-context-menu__item--danger"
-                                data-testid="calendar-delete-action"
-                                @onclick="DeleteContextMenuLogAsync">
-                            Delete Entry
-                        </button>
-                    }
-                }
+                            @if (CanDeleteCalendarContextMenuLog)
+                            {
+                                <button type="button"
+                                        class="calendar-context-menu__item calendar-context-menu__item--danger"
+                                        data-testid="calendar-delete-action"
+                                        @onclick="DeleteContextMenuLogAsync">
+                                    Delete Entry
+                                </button>
+                            }
+                        }
 
-                @if (_calendarContextMenu.TargetDate.HasValue)
-                {
-                    <button type="button"
-                            class="calendar-context-menu__item"
-                            data-testid="calendar-paste-action"
-                            @onclick="PasteContextMenuEntryAsync">
-                        Paste Entry
-                    </button>
+                        @if (_calendarContextMenu.TargetDate.HasValue)
+                        {
+                            <button type="button"
+                                    class="calendar-context-menu__item"
+                                    data-testid="calendar-paste-action"
+                                    @onclick="PasteContextMenuEntryAsync">
+                                Paste Entry
+                            </button>
+                        }
+                    </div>
                 }
             </div>
-        }
         </div>
     </MudTabPanel>
 
     @* --- LOGS TAB --- *@
     <MudTabPanel Text="List View" Icon="@Icons.Material.Filled.List">
-        <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
+        <MudStack Row="true" Wrap="Wrap.Wrap" Class="mb-4 schedule-list-toolbar" AlignItems="AlignItems.Center">
             <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
                 <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
                 <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
@@ -157,11 +227,11 @@
             <MudCheckBox T="bool" @bind-Value="_needsReviewOnly" Label="Needs Review" Color="Color.Warning" />
         </MudStack>
 
-        <MudTable Items="@FilteredLogs" RowStyleFunc="GetRowStyle" Dense="true" Hover="true">
+        <MudTable Items="@FilteredLogs" RowStyleFunc="GetRowStyle" Dense="true" Hover="true" Class="schedule-list-table">
             <ToolBarContent>
                 <MudText Typo="Typo.h6">Daily Records</MudText>
                 <MudSpacer />
-                <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+                <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0 schedule-list-search"></MudTextField>
             </ToolBarContent>
             <HeaderContent>
                 <MudTh>
@@ -194,7 +264,7 @@
                 <MudTd DataLabel="Main Category">@context.MainCategory</MudTd>
                 <MudTd DataLabel="Sub-Category">@context.SubCategory</MudTd>
                 <MudTd DataLabel="Details">@context.Details</MudTd>
-                <MudTd>
+                <MudTd Class="schedule-list-actions">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(context))" Size="Size.Small" />
                     <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteLog(context.Id))" Size="Size.Small" />
                 </MudTd>
@@ -337,6 +407,72 @@
 
     .calendar-surface {
         position: relative;
+    }
+
+    .schedule-calendar-toolbar,
+    .schedule-list-toolbar {
+        gap: 1rem;
+    }
+
+    .schedule-calendar-navigation {
+        gap: 0.25rem;
+    }
+
+    .schedule-calendar-month-label {
+        min-width: 200px;
+        margin: 0 1rem;
+        text-align: center;
+    }
+
+    .schedule-calendar-actions {
+        flex-shrink: 0;
+    }
+
+    .mobile-calendar-agenda {
+        width: 100%;
+    }
+
+    .mobile-calendar-day-card {
+        padding: 1rem;
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 12px;
+        background-color: var(--mud-palette-surface);
+    }
+
+    .mobile-calendar-day-card.today {
+        border-color: var(--mud-palette-primary);
+        box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
+    }
+
+    .mobile-calendar-day-actions {
+        gap: 0.5rem;
+    }
+
+    .mobile-calendar-empty {
+        display: block;
+        padding: 0.5rem 0;
+    }
+
+    .mobile-log-card {
+        padding: 0.85rem;
+        border: 1px solid var(--mud-palette-divider);
+        border-left-width: 4px !important;
+        border-radius: 10px;
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .mobile-log-primary {
+        min-width: 0;
+    }
+
+    .mobile-log-details {
+        white-space: normal;
+        line-height: 1.45;
+    }
+
+    .mobile-log-actions .mud-icon-button {
+        width: 44px;
+        height: 44px;
     }
 
     .calendar-header {
@@ -489,6 +625,63 @@
         background-color: rgba(var(--mud-palette-error-rgb), 0.12);
     }
 
+    @@media (max-width: 599.95px) {
+        .schedule-calendar-toolbar,
+        .schedule-list-toolbar {
+            align-items: stretch;
+        }
+
+        .schedule-calendar-navigation {
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .schedule-calendar-month-label {
+            flex: 1 1 auto;
+            min-width: 0;
+            margin: 0;
+        }
+
+        .schedule-calendar-actions {
+            width: 100%;
+        }
+
+        .schedule-calendar-actions .mud-button-root,
+        .schedule-calendar-actions .mud-menu-button {
+            flex: 1 1 auto;
+        }
+
+        .mobile-calendar-day-actions {
+            width: 100%;
+        }
+
+        .mobile-calendar-day-actions .mud-button-root {
+            flex: 1 1 auto;
+        }
+
+        .schedule-list-table .mud-table-toolbar {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.75rem;
+        }
+
+        .schedule-list-search {
+            width: 100%;
+        }
+
+        .schedule-list-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.25rem;
+        }
+
+        .schedule-list-table .mud-table-cell {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+        }
+    }
+
     /* Sub-Category Accent Borders using Theme Variables */
     .cat-office { border-left-color: var(--mud-palette-info) !important; }
     .cat-wfh { border-left-color: var(--mud-palette-tertiary) !important; }
@@ -515,6 +708,7 @@
 
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
     private int _offsetDays => (int)new DateTime(_currentDate.Year, _currentDate.Month, 1).DayOfWeek;
+    private IEnumerable<DateOnly> DaysInCurrentMonth => Enumerable.Range(1, _daysInMonth).Select(day => new DateOnly(_currentDate.Year, _currentDate.Month, day));
     private IEnumerable<WorkLog> FilteredLogs => _logs.Where(FilterFunc);
     private int VisibleSelectedLogCount => FilteredLogs.Count(log => _selectedLogIds.Contains(log.Id));
     private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
@@ -787,6 +981,24 @@
         _ => "cat-other"
     };
 
+    private Color GetLogColor(WorkLog log) => log.SubCategory switch
+    {
+        "In-Office" => Color.Info,
+        "Work From Home" => Color.Tertiary,
+        "Remote Location" => Color.Secondary,
+        "PTO" => Color.Success,
+        "Sick Day" => Color.Error,
+        "FMLA Day" => Color.Error,
+        "Comp Day" => Color.Warning,
+        "Holiday" => Color.Warning,
+        _ => log.MainCategory switch
+        {
+            "Work" => Color.Primary,
+            "Leave" => Color.Error,
+            _ => Color.Default
+        }
+    };
+
     private string GetLogIcon(WorkLog log) => log.SubCategory switch
     {
         "In-Office" => Icons.Material.Filled.Business,
@@ -870,10 +1082,7 @@
             return Task.CompletedTask;
         }
 
-        _copiedEntry = CopiedCalendarEntry.From(_calendarContextMenu.Log);
-        HideCalendarContextMenu();
-        Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
-        return Task.CompletedTask;
+        return CopyLog(_calendarContextMenu.Log);
     }
 
     private async Task DeleteContextMenuLogAsync()
@@ -888,8 +1097,48 @@
         await DeleteLog(log, isCalendarEntry: true);
     }
 
+    private IEnumerable<WorkLog> GetLogsForDate(DateOnly date) =>
+        _logs.Where(l => l.LogDate == date)
+            .OrderBy(l => l.LogTime ?? TimeOnly.MinValue)
+            .ThenBy(l => l.Employee?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+    private static string GetMobileDaySummary(int count) => count switch
+    {
+        0 => "No entries scheduled",
+        1 => "1 entry scheduled",
+        _ => $"{count} entries scheduled"
+    };
+
+    private static string GetLogTimeLabel(WorkLog log) =>
+        log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue
+            ? log.LogTime.Value.ToString("h:mm tt")
+            : "Time not set";
+
+    private static string GetMobileLogMeta(WorkLog log) =>
+        string.IsNullOrWhiteSpace(log.Employee?.Initials)
+            ? GetLogTimeLabel(log)
+            : $"{GetLogTimeLabel(log)} • {log.Employee.Initials}";
+
+    private Task CopyLog(WorkLog log)
+    {
+        _copiedEntry = CopiedCalendarEntry.From(log);
+        HideCalendarContextMenu();
+        Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
+        return Task.CompletedTask;
+    }
+
     private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
         _copiedEntry is not null && _copiedEntry.SourceDate != targetDate;
+
+    private Task PasteCopiedEntryToDateAsync(DateOnly targetDate)
+    {
+        _calendarContextMenu = new CalendarContextMenuState
+        {
+            TargetDate = targetDate
+        };
+
+        return PasteContextMenuEntryAsync();
+    }
 
     private async Task PasteContextMenuEntryAsync()
     {
