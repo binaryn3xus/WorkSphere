@@ -8,29 +8,104 @@
 <MudText Typo="Typo.h4" GutterBottom="true">Manage Employees</MudText>
 
 <MudPaper Elevation="3" Class="pa-4 mb-4">
-    <MudStack Row="true" AlignItems="AlignItems.Center">
-        <MudTextField @bind-Value="_newEmployee.Name" Label="Full Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
-        <MudTextField @bind-Value="_newEmployee.Initials" Label="Initials" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="5" Style="width: 100px;" />
+    <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2" Class="employees-toolbar">
+        <MudTextField @bind-Value="_newEmployee.Name" Label="Full Name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="employees-toolbar__name" />
+        <MudTextField @bind-Value="_newEmployee.Initials" Label="Initials" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="5" Class="employees-toolbar__initials" />
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEmployee">Add Employee</MudButton>
     </MudStack>
 </MudPaper>
 
-<MudTable Items="@_employees" Dense="true" Hover="true" Elevation="3">
-    <HeaderContent>
-        <MudTh>ID</MudTh>
-        <MudTh>Name</MudTh>
-        <MudTh>Initials</MudTh>
-        <MudTh Style="width: 100px;">Actions</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="ID">@context.Id</MudTd>
-        <MudTd DataLabel="Name">@context.Name</MudTd>
-        <MudTd DataLabel="Initials">@context.Initials</MudTd>
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteEmployee(context))" />
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+<div class="d-none d-sm-block">
+    <MudTable Items="@_employees" Dense="true" Hover="true" Elevation="3">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>Initials</MudTh>
+            <MudTh Style="width: 100px;">Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">@context.Id</MudTd>
+            <MudTd DataLabel="Name">@context.Name</MudTd>
+            <MudTd DataLabel="Initials">@context.Initials</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteEmployee(context))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</div>
+
+<div class="d-block d-sm-none">
+    @if (_employees.Any())
+    {
+        <MudStack Spacing="2">
+            @foreach (var employee in _employees)
+            {
+                <MudPaper Elevation="0" Class="pa-4 employee-mobile-card">
+                    <MudStack Spacing="2">
+                        <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap">
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@employee.Name</MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Employee ID #@employee.Id</MudText>
+                            </MudStack>
+
+                            <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Icon="@Icons.Material.Filled.Badge">
+                                @employee.Initials
+                            </MudChip>
+                        </MudStack>
+
+                        <MudPaper Elevation="0" Class="pa-3 employee-mobile-card__meta">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase">Initials</MudText>
+                                <MudText Typo="Typo.body2" Class="font-weight-medium">@employee.Initials</MudText>
+                            </MudStack>
+                        </MudPaper>
+
+                        <MudStack Row="true" Justify="Justify.FlexEnd">
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Delete"
+                                       OnClick="@(() => DeleteEmployee(employee))">
+                                Delete
+                            </MudButton>
+                        </MudStack>
+                    </MudStack>
+                </MudPaper>
+            }
+        </MudStack>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No employees have been added yet.</MudAlert>
+    }
+</div>
+
+<style>
+    .employees-toolbar {
+        gap: 12px;
+    }
+
+    .employees-toolbar__name {
+        min-width: min(100%, 320px);
+        flex: 1 1 260px;
+    }
+
+    .employees-toolbar__initials {
+        width: 110px;
+    }
+
+    .employee-mobile-card {
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
+        border-left: 4px solid var(--mud-palette-primary);
+    }
+
+    .employee-mobile-card__meta {
+        border-radius: 10px;
+        background-color: var(--mud-palette-background-grey);
+    }
+</style>
 
 @code {
     private List<Employee> _employees = new();
