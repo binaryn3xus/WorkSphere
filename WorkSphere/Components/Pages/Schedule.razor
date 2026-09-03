@@ -16,7 +16,33 @@
 
 <MudText Typo="Typo.h4" GutterBottom="true">Team Schedule</MudText>
 
-<MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Primary">
+<MudPaper Elevation="0" Class="pa-4 mb-4 schedule-mobile-tab-picker">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="schedule-mobile-tab-picker__header">
+        <MudIcon Icon="@GetScheduleTabIcon(_activeScheduleTabIndex)" Color="Color.Primary" />
+        <MudText Typo="Typo.subtitle2">Jump to section</MudText>
+    </MudStack>
+    <MudSelect T="int"
+               Label="Team Schedule section"
+               Value="@_activeScheduleTabIndex"
+               ValueChanged="OnActiveScheduleTabChanged"
+               Dense="true"
+               Variant="Variant.Outlined"
+               Class="schedule-mobile-tab-picker__select">
+        @for (var index = 0; index < ScheduleTabOptions.Length; index++)
+        {
+            var option = ScheduleTabOptions[index];
+            <MudSelectItem Value="@index">@option.Label</MudSelectItem>
+        }
+    </MudSelect>
+</MudPaper>
+
+<MudTabs Elevation="3"
+         Rounded="true"
+         ApplyEffectsToContainer="true"
+         Color="Color.Primary"
+         Class="schedule-tabs"
+         ActivePanelIndex="@_activeScheduleTabIndex"
+         ActivePanelIndexChanged="OnActiveScheduleTabChanged">
     @* --- CALENDAR TAB --- *@
     <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
         <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4 schedule-calendar-toolbar">
@@ -549,6 +575,20 @@
 </MudTabs>
 
 <style>
+    .schedule-mobile-tab-picker {
+        display: none;
+        border: 1px solid rgba(var(--mud-palette-primary-rgb), 0.16);
+        background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.08) 0%, rgba(var(--mud-palette-surface-rgb), 0.98) 100%);
+    }
+
+    .schedule-mobile-tab-picker__header {
+        margin-bottom: 0.5rem;
+    }
+
+    .schedule-mobile-tab-picker__select {
+        width: 100%;
+    }
+
     .calendar-grid {
         display: grid;
         grid-template-columns: repeat(7, 1fr);
@@ -883,14 +923,36 @@
     .mobile-audit-card__panel {
         border: 1px solid rgba(var(--mud-palette-text-primary-rgb), 0.06);
     }
+
+    @@media (max-width: 599.98px) {
+        .schedule-mobile-tab-picker {
+            display: block;
+        }
+
+        .schedule-tabs .mud-tabs-tabbar {
+            display: none;
+        }
+
+        .schedule-tabs .mud-tabs-panels {
+            padding-top: 0.25rem;
+        }
+    }
 </style>
 
 @code {
+    private static readonly ScheduleTabOption[] ScheduleTabOptions =
+    [
+        new("Calendar", Icons.Material.Filled.CalendarMonth),
+        new("List View", Icons.Material.Filled.List),
+        new("Audit", Icons.Material.Filled.FactCheck)
+    ];
+
     private DateTime _currentDate = DateTime.Today;
     private List<WorkLog> _logs = new();
     private string[] _daysOfWeek = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
     private string _searchString = "";
     private bool _needsReviewOnly = false;
+    private int _activeScheduleTabIndex;
     private readonly HashSet<int> _selectedLogIds = [];
     private bool _isDeletingLogs;
     private CalendarContextMenuState _calendarContextMenu = new();
@@ -910,7 +972,6 @@
         _calendarContextMenu.Log is { Id: > 0 } log &&
         !_isDeletingLogs &&
         _logs.Any(existingLog => existingLog.Id == log.Id);
-
     private List<AuditRow> _auditRows = new();
     private string _auditFilter = "All";
     private int _auditYear = DateTime.Today.Year;
@@ -931,6 +992,27 @@
     {
         await LoadData();
         await LoadAuditData();
+    }
+
+    private Task OnActiveScheduleTabChanged(int tabIndex)
+    {
+        if (tabIndex < 0 || tabIndex >= ScheduleTabOptions.Length)
+        {
+            return Task.CompletedTask;
+        }
+
+        _activeScheduleTabIndex = tabIndex;
+        return Task.CompletedTask;
+    }
+
+    private string GetScheduleTabIcon(int tabIndex)
+    {
+        if (tabIndex < 0 || tabIndex >= ScheduleTabOptions.Length)
+        {
+            return Icons.Material.Filled.CalendarMonth;
+        }
+
+        return ScheduleTabOptions[tabIndex].Icon;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1782,4 +1864,6 @@
             Hours = log.Hours
         };
     }
+
+    private sealed record ScheduleTabOption(string Label, string Icon);
 }

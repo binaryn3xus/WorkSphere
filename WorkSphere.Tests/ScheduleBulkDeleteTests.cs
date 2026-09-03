@@ -49,6 +49,39 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
     }
 
     [Fact]
+    public void SchedulePage_RendersMobileSectionPicker()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderCalendar();
+
+        Assert.Contains("schedule-mobile-tab-picker", cut.Markup);
+        Assert.Contains("Jump to section", cut.Markup);
+        Assert.Contains("Team Schedule section", cut.Markup);
+        Assert.Contains("Calendar", cut.Markup);
+        Assert.Contains("List View", cut.Markup);
+        Assert.Contains("Audit", cut.Markup);
+    }
+
+    [Fact]
+    public void SchedulePage_MobileSectionPickerSelectionDrivesTheSameTabState()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderCalendar();
+
+        SetActiveScheduleTab(cut, 2);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Refresh Audit", cut.Markup);
+            Assert.Equal(2, GetPrivateField<int>(cut.Instance, "_activeScheduleTabIndex"));
+        });
+    }
+
+    [Fact]
     public void CalendarEntryContextMenu_RightClickRendersCopyAction()
     {
         var initialLogs = CreateLogs(1, 2, 3);
@@ -559,8 +592,25 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             .GetField("_copiedEntry", BindingFlags.Instance | BindingFlags.NonPublic)
             ?.GetValue(cut.Instance);
 
+    private static void SetActiveScheduleTab(IRenderedComponent<Schedule> cut, int tabIndex)
+    {
+        var onActiveScheduleTabChanged = typeof(Schedule).GetMethod("OnActiveScheduleTabChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(onActiveScheduleTabChanged);
+
+        cut.InvokeAsync(async () =>
+        {
+            await (Task)onActiveScheduleTabChanged!.Invoke(cut.Instance, [tabIndex])!;
+            typeof(ComponentBase)
+                .GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(cut.Instance, null);
+        }).GetAwaiter().GetResult();
+    }
+
     private static T GetProperty<T>(object instance, string propertyName) =>
         (T)instance.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)!.GetValue(instance)!;
+
+    private static T GetPrivateField<T>(object instance, string fieldName) =>
+        (T)instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
 
     private sealed class ScheduleTestHarness : TestContext
     {
