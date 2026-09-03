@@ -19,12 +19,13 @@
 <MudTabs Elevation="3" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Primary">
     @* --- CALENDAR TAB --- *@
     <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" />
-            <MudText Typo="Typo.h5" Class="mx-4" Style="min-width: 200px; text-align: center;">@_currentDate.ToString("MMMM yyyy")</MudText>
-            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" />
-            <MudSpacer />
-            <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
+        <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4 schedule-calendar-toolbar">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Class="schedule-calendar-navigation">
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" aria-label="Previous month" />
+                <MudText Typo="Typo.h5" Class="schedule-calendar-month-label">@_currentDate.ToString("MMMM yyyy")</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" OnClick="NextMonth" aria-label="Next month" />
+            </MudStack>
+            <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled" Class="schedule-calendar-actions">
                 <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
                 <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
                     <MudMenuItem OnClick="OpenRangeDialog" Icon="@Icons.Material.Filled.DateRange" IconColor="Color.Info">Add Date Range</MudMenuItem>
@@ -34,7 +35,75 @@
         </MudStack>
 
         <div class="calendar-surface" @onclick="HideCalendarContextMenu">
-        <div class="calendar-grid">
+            <div class="d-block d-sm-none" data-testid="mobile-calendar-agenda">
+                <MudStack Spacing="2" Class="mobile-calendar-agenda">
+                    @foreach (var date in DaysInCurrentMonth)
+                    {
+                        var dayLogs = GetLogsForDate(date).ToList();
+
+                        <MudPaper Elevation="0"
+                                  Class="@($"mobile-calendar-day-card {(date == DateOnly.FromDateTime(DateTime.Today) ? "today" : string.Empty)}")"
+                                  data-mobile-calendar-day="@date.ToString("yyyy-MM-dd")">
+                            <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@date.ToString("dddd, MMMM d")</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@GetMobileDaySummary(dayLogs.Count)</MudText>
+                                </MudStack>
+                                <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Spacing="1" Class="mobile-calendar-day-actions">
+                                    @if (date == DateOnly.FromDateTime(DateTime.Today))
+                                    {
+                                        <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">Today</MudChip>
+                                    }
+                                    <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => OpenAddDialog(date))">Add</MudButton>
+                                    @if (CanPasteCopiedEntryTo(date))
+                                    {
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.ContentPaste" OnClick="@(() => PasteCopiedEntryToDateAsync(date))">Paste</MudButton>
+                                    }
+                                </MudStack>
+                            </MudStack>
+
+                            @if (dayLogs.Count == 0)
+                            {
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary mobile-calendar-empty">No schedule entries for this day.</MudText>
+                            }
+                            else
+                            {
+                                <MudStack Spacing="2">
+                                    @foreach (var log in dayLogs)
+                                    {
+                                        <MudPaper Elevation="0" Class="@($"mobile-log-card {GetLogCssClass(log)}")" data-mobile-log-id="@log.Id">
+                                            <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Class="mb-2" Spacing="2">
+                                                <MudStack Spacing="0" Class="mobile-log-primary">
+                                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold">@log.Employee?.Name</MudText>
+                                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@GetMobileLogMeta(log)</MudText>
+                                                </MudStack>
+                                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@GetLogColor(log)" Icon="@GetLogIcon(log)">@log.SubCategory</MudChip>
+                                            </MudStack>
+
+                                            @if (!string.IsNullOrWhiteSpace(log.Details))
+                                            {
+                                                <MudText Typo="Typo.body2" Class="mobile-log-details">@log.Details</MudText>
+                                            }
+
+                                            <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mt-2">
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@log.MainCategory</MudText>
+                                                <MudStack Row="true" Spacing="0" Class="mobile-log-actions">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Medium" aria-label="@($"Edit mobile log {log.Id}")" OnClick="@(() => OpenEditDialog(log))" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Secondary" Size="Size.Medium" aria-label="@($"Copy mobile log {log.Id}")" OnClick="@(() => CopyLog(log))" />
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Medium" aria-label="@($"Delete mobile log {log.Id}")" OnClick="@(() => DeleteLog(log, true))" />
+                                                </MudStack>
+                                            </MudStack>
+                                        </MudPaper>
+                                    }
+                                </MudStack>
+                            }
+                        </MudPaper>
+                    }
+                </MudStack>
+            </div>
+
+            <div class="d-none d-sm-block">
+                <div class="calendar-grid">
             @foreach (var day in _daysOfWeek)
             {
                 <div class="calendar-header">@day</div>
@@ -91,50 +160,51 @@
             }
         </div>
 
-        @if (_calendarContextMenu.IsVisible)
-        {
-            <div class="calendar-context-menu"
-                 @ref="_calendarContextMenuElement"
-                 data-testid="calendar-context-menu"
-                 style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
-                 @onclick:stopPropagation>
-                @if (_calendarContextMenu.Log is not null)
+                @if (_calendarContextMenu.IsVisible)
                 {
-                    <button type="button"
-                            class="calendar-context-menu__item"
-                            data-testid="calendar-copy-action"
-                            @onclick="CopyContextMenuLog">
-                        Copy Entry
-                    </button>
+                    <div class="calendar-context-menu"
+                         @ref="_calendarContextMenuElement"
+                         data-testid="calendar-context-menu"
+                         style="left:@($"{_calendarContextMenu.X}px"); top:@($"{_calendarContextMenu.Y}px");"
+                         @onclick:stopPropagation>
+                        @if (_calendarContextMenu.Log is not null)
+                        {
+                            <button type="button"
+                                    class="calendar-context-menu__item"
+                                    data-testid="calendar-copy-action"
+                                    @onclick="CopyContextMenuLog">
+                                Copy Entry
+                            </button>
 
-                    @if (CanDeleteCalendarContextMenuLog)
-                    {
-                        <button type="button"
-                                class="calendar-context-menu__item calendar-context-menu__item--danger"
-                                data-testid="calendar-delete-action"
-                                @onclick="DeleteContextMenuLogAsync">
-                            Delete Entry
-                        </button>
-                    }
-                }
+                            @if (CanDeleteCalendarContextMenuLog)
+                            {
+                                <button type="button"
+                                        class="calendar-context-menu__item calendar-context-menu__item--danger"
+                                        data-testid="calendar-delete-action"
+                                        @onclick="DeleteContextMenuLogAsync">
+                                    Delete Entry
+                                </button>
+                            }
+                        }
 
-                @if (_calendarContextMenu.TargetDate.HasValue)
-                {
-                    <button type="button"
-                            class="calendar-context-menu__item"
-                            data-testid="calendar-paste-action"
-                            @onclick="PasteContextMenuEntryAsync">
-                        Paste Entry
-                    </button>
+                        @if (_calendarContextMenu.TargetDate.HasValue)
+                        {
+                            <button type="button"
+                                    class="calendar-context-menu__item"
+                                    data-testid="calendar-paste-action"
+                                    @onclick="PasteContextMenuEntryAsync">
+                                Paste Entry
+                            </button>
+                        }
+                    </div>
                 }
             </div>
-        }
         </div>
     </MudTabPanel>
 
     @* --- LOGS TAB --- *@
     <MudTabPanel Text="List View" Icon="@Icons.Material.Filled.List">
-        <MudStack Row="true" Class="mb-4" AlignItems="AlignItems.Center">
+        <MudStack Row="true" Class="mb-4 schedule-list-toolbar schedule-toolbar" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2">
             <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
                 <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
                 <MudMenu Icon="@Icons.Material.Filled.ArrowDropDown" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
@@ -148,73 +218,153 @@
                            Variant="Variant.Outlined"
                            StartIcon="@Icons.Material.Filled.Delete"
                            OnClick="DeleteSelectedLogs"
-                           Disabled="_isDeletingLogs"
-                           Class="ml-2">
+                           Disabled="_isDeletingLogs">
                     Delete Selected (@VisibleSelectedLogCount)
                 </MudButton>
             }
-            <MudSpacer />
             <MudCheckBox T="bool" @bind-Value="_needsReviewOnly" Label="Needs Review" Color="Color.Warning" />
+            <MudSpacer />
+            <MudTextField @bind-Value="_searchString"
+                          Placeholder="Search records"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Medium"
+                          Class="mt-0 schedule-toolbar__search" />
         </MudStack>
 
-        <MudTable Items="@FilteredLogs" RowStyleFunc="GetRowStyle" Dense="true" Hover="true">
-            <ToolBarContent>
-                <MudText Typo="Typo.h6">Daily Records</MudText>
-                <MudSpacer />
-                <MudTextField @bind-Value="_searchString" Placeholder="Search" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
-            </ToolBarContent>
-            <HeaderContent>
-                <MudTh>
-                    <MudCheckBox T="bool"
-                                 Value="@AreAllVisibleLogsSelected"
-                                 ValueChanged="ToggleSelectAllVisibleLogs"
-                                 Indeterminate="@HasPartialVisibleSelection"
-                                 Disabled="!FilteredLogs.Any() || _isDeletingLogs"
-                                 aria-label="Select all visible logs" />
-                </MudTh>
-                <MudTh>Date</MudTh>
-                <MudTh>Time</MudTh>
-                <MudTh>Employee</MudTh>
-                <MudTh>Main Category</MudTh>
-                <MudTh>Sub-Category</MudTh>
-                <MudTh>Details</MudTh>
-                <MudTh Style="width: 100px;">Actions</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd DataLabel="Select">
-                    <MudCheckBox T="bool"
-                                 Value="@IsLogSelected(context.Id)"
-                                 ValueChanged="@((bool selected) => ToggleLogSelection(context.Id, selected))"
-                                 Disabled="_isDeletingLogs"
-                                 aria-label="@($"Select log {context.Id}")" />
-                </MudTd>
-                <MudTd DataLabel="Date">@context.LogDate?.ToString("MM/dd/yyyy")</MudTd>
-                <MudTd DataLabel="Time">@context.LogTime?.ToString("HH:mm")</MudTd>
-                <MudTd DataLabel="Employee">@context.Employee?.Name</MudTd>
-                <MudTd DataLabel="Main Category">@context.MainCategory</MudTd>
-                <MudTd DataLabel="Sub-Category">@context.SubCategory</MudTd>
-                <MudTd DataLabel="Details">@context.Details</MudTd>
-                <MudTd>
-                    <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(context))" Size="Size.Small" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteLog(context.Id))" Size="Size.Small" />
-                </MudTd>
-            </RowTemplate>
-            <PagerContent>
-                <MudTablePager />
-            </PagerContent>
-        </MudTable>
+        <div class="d-block d-sm-none">
+            @if (FilteredLogs.Any())
+            {
+                <MudStack Spacing="2">
+                    @foreach (var log in FilteredLogs)
+                    {
+                        <MudPaper Elevation="0" Class="@($"pa-4 mobile-feed-card {GetLogCssClass(log)}")" Style="@GetRowStyle(log, 0)">
+                            <MudStack Spacing="2">
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@log.Employee?.Name</MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                            @GetFormattedLogDate(log.LogDate)
+                                            @if (log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue)
+                                            {
+                                                <span> • @GetFormattedLogTime(log.LogTime)</span>
+                                            }
+                                        </MudText>
+                                    </MudStack>
+
+                                    <MudCheckBox T="bool"
+                                                 Value="@IsLogSelected(log.Id)"
+                                                 ValueChanged="@((bool selected) => ToggleLogSelection(log.Id, selected))"
+                                                 Disabled="_isDeletingLogs"
+                                                 Label="Select"
+                                                 aria-label="@($"Select mobile log {log.Id}")" />
+                                </MudStack>
+
+                                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="Color.Primary">@log.MainCategory</MudChip>
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Icon="@GetLogIcon(log)">@log.SubCategory</MudChip>
+                                    @if (log.EarnsCompTime)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning" Icon="@Icons.Material.Filled.Schedule">Earns Comp</MudChip>
+                                    }
+                                    @if (log.UsesCompTime)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info" Icon="@Icons.Material.Filled.History">Uses Comp</MudChip>
+                                    }
+                                </MudStack>
+
+                                @if (!string.IsNullOrWhiteSpace(log.Details))
+                                {
+                                    <MudPaper Elevation="0" Class="pa-3 mobile-feed-card__details">
+                                        <MudText Typo="Typo.body2">@log.Details</MudText>
+                                    </MudPaper>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2" Class="mud-text-secondary italic">No additional details provided.</MudText>
+                                }
+
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Log #@log.Id</MudText>
+                                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(log))">
+                                            Edit
+                                        </MudButton>
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete" OnClick="@(() => DeleteLog(log.Id))">
+                                            Delete
+                                        </MudButton>
+                                    </MudStack>
+                                </MudStack>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No records match the current filters.</MudAlert>
+            }
+        </div>
+
+        <div class="d-none d-sm-block schedule-table-shell">
+            <MudTable Items="@FilteredLogs" RowStyleFunc="GetRowStyle" Dense="true" Hover="true">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Daily Records</MudText>
+                    <MudSpacer />
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>
+                        <MudCheckBox T="bool"
+                                     Value="@AreAllVisibleLogsSelected"
+                                     ValueChanged="ToggleSelectAllVisibleLogs"
+                                     Indeterminate="@HasPartialVisibleSelection"
+                                     Disabled="!FilteredLogs.Any() || _isDeletingLogs"
+                                     aria-label="Select all visible logs" />
+                    </MudTh>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Time</MudTh>
+                    <MudTh>Employee</MudTh>
+                    <MudTh>Main Category</MudTh>
+                    <MudTh>Sub-Category</MudTh>
+                    <MudTh>Details</MudTh>
+                    <MudTh Style="width: 100px;">Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Select">
+                        <MudCheckBox T="bool"
+                                     Value="@IsLogSelected(context.Id)"
+                                     ValueChanged="@((bool selected) => ToggleLogSelection(context.Id, selected))"
+                                     Disabled="_isDeletingLogs"
+                                     aria-label="@($"Select log {context.Id}")" />
+                    </MudTd>
+                    <MudTd DataLabel="Date">@context.LogDate?.ToString("MM/dd/yyyy")</MudTd>
+                    <MudTd DataLabel="Time">@context.LogTime?.ToString("HH:mm")</MudTd>
+                    <MudTd DataLabel="Employee">@context.Employee?.Name</MudTd>
+                    <MudTd DataLabel="Main Category">@context.MainCategory</MudTd>
+                    <MudTd DataLabel="Sub-Category">@context.SubCategory</MudTd>
+                    <MudTd DataLabel="Details">@context.Details</MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(context))" Size="Size.Small" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteLog(context.Id))" Size="Size.Small" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </div>
     </MudTabPanel>
 
     @* --- AUDIT TAB --- *@
     <MudTabPanel Text="Audit" Icon="@Icons.Material.Filled.FactCheck">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-            <MudSelect T="int" Label="Year" Value="@_auditYear" ValueChanged="OnAuditYearChanged" Dense="true" Style="max-width: 120px;">
+        <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="mb-4 schedule-audit-toolbar">
+            <MudSelect T="int" Label="Year" Value="@_auditYear" ValueChanged="OnAuditYearChanged" Dense="true" Class="schedule-audit-select schedule-audit-select--year" Style="max-width: 120px;">
                 @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
                 {
                     <MudSelectItem Value="@y" />
                 }
             </MudSelect>
-            <MudSelect T="int" Label="Month" Value="@_auditMonth" ValueChanged="OnAuditMonthChanged" Dense="true" Style="max-width: 150px;">
+            <MudSelect T="int" Label="Month" Value="@_auditMonth" ValueChanged="OnAuditMonthChanged" Dense="true" Class="schedule-audit-select schedule-audit-select--month" Style="max-width: 150px;">
                 <MudSelectItem Value="0">All</MudSelectItem>
                 <MudSelectItem Value="1">January</MudSelectItem>
                 <MudSelectItem Value="2">February</MudSelectItem>
@@ -229,14 +379,16 @@
                 <MudSelectItem Value="11">November</MudSelectItem>
                 <MudSelectItem Value="12">December</MudSelectItem>
             </MudSelect>
-            <MudSelect T="string" Label="Filter Status" @bind-Value="_auditFilter" Dense="true" Style="max-width: 180px;" Class="ml-4">
+            <MudSelect T="string" Label="Filter Status" @bind-Value="_auditFilter" Dense="true" Style="max-width: 180px;" Class="schedule-audit-select schedule-audit-filter">
                 <MudSelectItem Value="@("All")">Show All</MudSelectItem>
                 <MudSelectItem Value="@("Missing")">Missing in DB</MudSelectItem>
                 <MudSelectItem Value="@("Extra")">DB Only (Extra)</MudSelectItem>
                 <MudSelectItem Value="@("Mismatch")">Mismatches</MudSelectItem>
             </MudSelect>
             <MudSpacer />
-            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAuditData">Refresh Audit</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAuditData" Class="schedule-audit-refresh">
+                Refresh Audit
+            </MudButton>
         </MudStack>
 
         <MudAlert Severity="Severity.Info" Class="mb-4" Variant="Variant.Outlined">
@@ -250,79 +402,149 @@
             </MudAlert>
         }
 
-        <MudTable Items="@FilteredAuditRows" Dense="true" Hover="true" FixedHeader="true" Height="600px" RowStyleFunc="GetAuditRowStyle">
-            <HeaderContent>
-                <MudTh>Date</MudTh>
-                <MudTh>Emp</MudTh>
-                <MudTh>Markdown Entry (File)</MudTh>
-                <MudTh>Database Entry</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh Style="width: 80px;">Action</MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                <MudTd>@context.Date.ToString("MM/dd/yy")</MudTd>
-                <MudTd>@context.Initials</MudTd>
-                <MudTd>
-                    <MudStack Spacing="0">
-                        <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                            @(context.MarkdownTime?.ToString("HH:mm") ?? "--:--")
-                        </MudText>
-                        <MudText Typo="Typo.body2" Class="@(context.InMarkdown ? "" : "mud-text-secondary italic")">
-                            @(context.MarkdownDetails ?? "Not in file")
-                        </MudText>
-                    </MudStack>
-                </MudTd>
-                <MudTd>
-                    @if (context.DbLog != null)
+        <div class="d-block d-sm-none">
+            @if (FilteredAuditRows.Any())
+            {
+                <MudStack Spacing="2">
+                    @foreach (var row in FilteredAuditRows)
                     {
+                        <MudPaper Elevation="0" Class="pa-4 mobile-feed-card mobile-audit-card" Style="@GetAuditRowStyle(row, 0)">
+                            <MudStack Spacing="2">
+                                <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap">
+                                    <MudStack Spacing="0">
+                                        <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@row.Date.ToString("MMMM dd, yyyy")</MudText>
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">Employee @row.Initials</MudText>
+                                    </MudStack>
+
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Variant="@GetAuditStatusVariant(row)"
+                                             Color="@GetAuditStatusColor(row)">
+                                        @GetAuditStatusText(row)
+                                    </MudChip>
+                                </MudStack>
+
+                                <MudPaper Elevation="0" Class="pa-3 mobile-feed-card__details mobile-audit-card__panel">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase">Markdown entry</MudText>
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary">@(row.MarkdownTime?.ToString("h:mm tt") ?? "No time")</MudText>
+                                    <MudText Typo="Typo.body2" Class="@(row.InMarkdown ? string.Empty : "mud-text-secondary italic")">
+                                        @(row.MarkdownDetails ?? "Not in file")
+                                    </MudText>
+                                </MudPaper>
+
+                                <MudPaper Elevation="0" Class="pa-3 mobile-feed-card__details mobile-audit-card__panel">
+                                    <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase">Database entry</MudText>
+                                    @if (row.DbLog != null)
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@(row.DbLog.LogTime?.ToString("h:mm tt") ?? "No time")</MudText>
+                                        <MudText Typo="Typo.body2"><b>@row.DbLog.SubCategory:</b> @row.DbLog.Details</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary italic">No DB record</MudText>
+                                    }
+                                </MudPaper>
+
+                                <MudStack Row="true" Justify="Justify.FlexEnd">
+                                    @if (row.DbLog != null)
+                                    {
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Edit" OnClick="@(() => OpenEditDialog(row.DbLog))">
+                                            Edit entry
+                                        </MudButton>
+                                    }
+                                    else
+                                    {
+                                        <MudButton Variant="Variant.Outlined" Size="Size.Small" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => AddMissingFromMarkdown(row))">
+                                            Add missing entry
+                                        </MudButton>
+                                    }
+                                </MudStack>
+                            </MudStack>
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No audit rows match the current filters.</MudAlert>
+            }
+        </div>
+
+        <div class="d-none d-sm-block schedule-table-shell">
+            <MudTable Items="@FilteredAuditRows" Dense="true" Hover="true" FixedHeader="true" Height="600px" RowStyleFunc="GetAuditRowStyle">
+                <HeaderContent>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Emp</MudTh>
+                    <MudTh>Markdown Entry (File)</MudTh>
+                    <MudTh>Database Entry</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh Style="width: 80px;">Action</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Date.ToString("MM/dd/yy")</MudTd>
+                    <MudTd>@context.Initials</MudTd>
+                    <MudTd>
                         <MudStack Spacing="0">
                             <MudText Typo="Typo.caption" Class="mud-text-secondary">
-                                @(context.DbLog.LogTime?.ToString("HH:mm") ?? "--:--")
+                                @(context.MarkdownTime?.ToString("HH:mm") ?? "--:--")
                             </MudText>
-                            <MudText Typo="Typo.body2">
-                                <b>@context.DbLog.SubCategory:</b> @context.DbLog.Details
+                            <MudText Typo="Typo.body2" Class="@(context.InMarkdown ? string.Empty : "mud-text-secondary italic")">
+                                @(context.MarkdownDetails ?? "Not in file")
                             </MudText>
                         </MudStack>
-                    }
-                    else
-                    {
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary italic">No DB Record</MudText>
-                    }
-                </MudTd>
-                <MudTd>
-                    @if (!context.InMarkdown)
-                    {
-                        <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">DB Only</MudChip>
-                    }
-                    else if (context.DbLog == null)
-                    {
-                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Missing</MudChip>
-                    }
-                    else if (Normalize(context.MarkdownDetails) != Normalize(context.DbLog.OriginalDetails))
-                    {
-                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Mismatch</MudChip>
-                    }
-                    else if (context.MarkdownTime != context.DbLog.LogTime)
-                    {
-                        <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Time Diff</MudChip>
-                    }
-                    else
-                    {
-                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
-                    }
-                </MudTd>
-                <MudTd>
-                    @if (context.DbLog != null)
-                    {
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.DbLog))" />
-                    }
-                    else
-                    {
-                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="@(() => AddMissingFromMarkdown(context))" />
-                    }
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
+                    </MudTd>
+                    <MudTd>
+                        @if (context.DbLog != null)
+                        {
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @(context.DbLog.LogTime?.ToString("HH:mm") ?? "--:--")
+                                </MudText>
+                                <MudText Typo="Typo.body2">
+                                    <b>@context.DbLog.SubCategory:</b> @context.DbLog.Details
+                                </MudText>
+                            </MudStack>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary italic">No DB Record</MudText>
+                        }
+                    </MudTd>
+                    <MudTd>
+                        @if (!context.InMarkdown)
+                        {
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">DB Only</MudChip>
+                        }
+                        else if (context.DbLog == null)
+                        {
+                            <MudChip T="string" Color="Color.Error" Size="Size.Small" Variant="Variant.Filled">Missing</MudChip>
+                        }
+                        else if (Normalize(context.MarkdownDetails) != Normalize(context.DbLog.OriginalDetails))
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Filled">Mismatch</MudChip>
+                        }
+                        else if (context.MarkdownTime != context.DbLog.LogTime)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small" Variant="Variant.Outlined">Time Diff</MudChip>
+                        }
+                        else
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                        }
+                    </MudTd>
+                    <MudTd>
+                        @if (context.DbLog != null)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.DbLog))" />
+                        }
+                        else
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small" Color="Color.Primary" OnClick="@(() => AddMissingFromMarkdown(context))" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </div>
     </MudTabPanel>
 </MudTabs>
 
@@ -337,6 +559,93 @@
 
     .calendar-surface {
         position: relative;
+    }
+
+    .schedule-calendar-toolbar,
+    .schedule-list-toolbar,
+    .schedule-audit-toolbar {
+        gap: 1rem;
+    }
+
+    .schedule-audit-select {
+        flex: 0 1 180px;
+    }
+
+    .schedule-audit-select--year {
+        flex-basis: 120px;
+    }
+
+    .schedule-audit-select--month {
+        flex-basis: 150px;
+    }
+
+    .schedule-audit-filter {
+        flex-basis: 180px;
+    }
+
+    .schedule-audit-refresh {
+        flex-shrink: 0;
+    }
+
+    .schedule-calendar-navigation {
+        gap: 0.25rem;
+    }
+
+    .schedule-calendar-month-label {
+        min-width: 200px;
+        margin: 0 1rem;
+        text-align: center;
+    }
+
+    .schedule-calendar-actions {
+        flex-shrink: 0;
+    }
+
+    .mobile-calendar-agenda {
+        width: 100%;
+    }
+
+    .mobile-calendar-day-card {
+        padding: 1rem;
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 12px;
+        background-color: var(--mud-palette-surface);
+    }
+
+    .mobile-calendar-day-card.today {
+        border-color: var(--mud-palette-primary);
+        box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
+    }
+
+    .mobile-calendar-day-actions {
+        gap: 0.5rem;
+    }
+
+    .mobile-calendar-empty {
+        display: block;
+        padding: 0.5rem 0;
+    }
+
+    .mobile-log-card {
+        padding: 0.85rem;
+        border: 1px solid var(--mud-palette-divider);
+        border-left-width: 4px !important;
+        border-radius: 10px;
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .mobile-log-primary {
+        min-width: 0;
+    }
+
+    .mobile-log-details {
+        white-space: normal;
+        line-height: 1.45;
+    }
+
+    .mobile-log-actions .mud-icon-button {
+        width: 44px;
+        height: 44px;
     }
 
     .calendar-header {
@@ -489,6 +798,53 @@
         background-color: rgba(var(--mud-palette-error-rgb), 0.12);
     }
 
+    @@media (max-width: 599.95px) {
+        .schedule-calendar-toolbar,
+        .schedule-list-toolbar,
+        .schedule-audit-toolbar {
+            align-items: stretch;
+        }
+
+        .schedule-calendar-navigation {
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .schedule-calendar-month-label {
+            flex: 1 1 auto;
+            min-width: 0;
+            margin: 0;
+        }
+
+        .schedule-calendar-actions {
+            width: 100%;
+        }
+
+        .schedule-calendar-actions .mud-button-root,
+        .schedule-calendar-actions .mud-menu-button {
+            flex: 1 1 auto;
+        }
+
+        .mobile-calendar-day-actions {
+            width: 100%;
+        }
+
+        .mobile-calendar-day-actions .mud-button-root {
+            flex: 1 1 auto;
+        }
+
+        .schedule-audit-select,
+        .schedule-audit-refresh {
+            width: 100%;
+            max-width: none !important;
+            flex: 1 1 100%;
+        }
+
+        .schedule-audit-refresh {
+            justify-content: center;
+        }
+    }
+
     /* Sub-Category Accent Borders using Theme Variables */
     .cat-office { border-left-color: var(--mud-palette-info) !important; }
     .cat-wfh { border-left-color: var(--mud-palette-tertiary) !important; }
@@ -498,6 +854,35 @@
     .cat-fmla { border-left-color: var(--mud-palette-error-darken) !important; }
     .cat-holiday { border-left-color: var(--mud-palette-warning) !important; }
     .cat-other { border-left-color: var(--mud-palette-grey-darken) !important; }
+
+    .schedule-toolbar {
+        gap: 12px;
+    }
+
+    .schedule-toolbar__search {
+        width: min(100%, 320px);
+    }
+
+    .schedule-table-shell {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .mobile-feed-card {
+        border: 1px solid var(--mud-palette-divider);
+        border-radius: 14px;
+        border-left: 4px solid var(--mud-palette-divider);
+        background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
+    }
+
+    .mobile-feed-card__details {
+        border-radius: 10px;
+        background-color: var(--mud-palette-background-grey);
+    }
+
+    .mobile-audit-card__panel {
+        border: 1px solid rgba(var(--mud-palette-text-primary-rgb), 0.06);
+    }
 </style>
 
 @code {
@@ -515,6 +900,7 @@
 
     private int _daysInMonth => DateTime.DaysInMonth(_currentDate.Year, _currentDate.Month);
     private int _offsetDays => (int)new DateTime(_currentDate.Year, _currentDate.Month, 1).DayOfWeek;
+    private IEnumerable<DateOnly> DaysInCurrentMonth => Enumerable.Range(1, _daysInMonth).Select(day => new DateOnly(_currentDate.Year, _currentDate.Month, day));
     private IEnumerable<WorkLog> FilteredLogs => _logs.Where(FilterFunc);
     private int VisibleSelectedLogCount => FilteredLogs.Count(log => _selectedLogIds.Contains(log.Id));
     private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
@@ -787,6 +1173,24 @@
         _ => "cat-other"
     };
 
+    private Color GetLogColor(WorkLog log) => log.SubCategory switch
+    {
+        "In-Office" => Color.Info,
+        "Work From Home" => Color.Tertiary,
+        "Remote Location" => Color.Secondary,
+        "PTO" => Color.Success,
+        "Sick Day" => Color.Error,
+        "FMLA Day" => Color.Error,
+        "Comp Day" => Color.Warning,
+        "Holiday" => Color.Warning,
+        _ => log.MainCategory switch
+        {
+            "Work" => Color.Primary,
+            "Leave" => Color.Error,
+            _ => Color.Default
+        }
+    };
+
     private string GetLogIcon(WorkLog log) => log.SubCategory switch
     {
         "In-Office" => Icons.Material.Filled.Business,
@@ -806,6 +1210,41 @@
             return "background-color: rgba(255, 152, 0, 0.15);";
         return "";
     }
+
+    private string GetFormattedLogDate(DateOnly? date) => date?.ToString("dddd, MMM dd, yyyy") ?? "No date";
+
+    private string GetFormattedLogTime(TimeOnly? time) =>
+        time.HasValue && time.Value != TimeOnly.MinValue
+            ? time.Value.ToString("h:mm tt")
+            : "No time";
+
+    private static bool AuditRowHasMismatch(AuditRow row) =>
+        row.InMarkdown && row.DbLog is not null &&
+        !string.Equals(row.MarkdownDetails?.Trim(), row.DbLog.OriginalDetails?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static bool AuditRowHasTimeDifference(AuditRow row) =>
+        row.DbLog is not null && row.MarkdownTime != row.DbLog.LogTime;
+
+    private static Color GetAuditStatusColor(AuditRow row) =>
+        !row.InMarkdown ? Color.Info :
+        row.DbLog is null ? Color.Error :
+        AuditRowHasMismatch(row) ? Color.Warning :
+        AuditRowHasTimeDifference(row) ? Color.Warning :
+        Color.Success;
+
+    private static Variant GetAuditStatusVariant(AuditRow row) =>
+        !row.InMarkdown || row.DbLog is null || AuditRowHasMismatch(row)
+            ? Variant.Filled
+            : AuditRowHasTimeDifference(row)
+                ? Variant.Outlined
+                : Variant.Text;
+
+    private static string GetAuditStatusText(AuditRow row) =>
+        !row.InMarkdown ? "DB Only" :
+        row.DbLog is null ? "Missing" :
+        AuditRowHasMismatch(row) ? "Mismatch" :
+        AuditRowHasTimeDifference(row) ? "Time Diff" :
+        "Matched";
 
     private bool FilterFunc(WorkLog log)
     {
@@ -870,10 +1309,7 @@
             return Task.CompletedTask;
         }
 
-        _copiedEntry = CopiedCalendarEntry.From(_calendarContextMenu.Log);
-        HideCalendarContextMenu();
-        Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
-        return Task.CompletedTask;
+        return CopyLog(_calendarContextMenu.Log);
     }
 
     private async Task DeleteContextMenuLogAsync()
@@ -888,8 +1324,48 @@
         await DeleteLog(log, isCalendarEntry: true);
     }
 
+    private IEnumerable<WorkLog> GetLogsForDate(DateOnly date) =>
+        _logs.Where(l => l.LogDate == date)
+            .OrderBy(l => l.LogTime ?? TimeOnly.MinValue)
+            .ThenBy(l => l.Employee?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+
+    private static string GetMobileDaySummary(int count) => count switch
+    {
+        0 => "No entries scheduled",
+        1 => "1 entry scheduled",
+        _ => $"{count} entries scheduled"
+    };
+
+    private static string GetLogTimeLabel(WorkLog log) =>
+        log.LogTime.HasValue && log.LogTime != TimeOnly.MinValue
+            ? log.LogTime.Value.ToString("h:mm tt")
+            : "Time not set";
+
+    private static string GetMobileLogMeta(WorkLog log) =>
+        string.IsNullOrWhiteSpace(log.Employee?.Initials)
+            ? GetLogTimeLabel(log)
+            : $"{GetLogTimeLabel(log)} • {log.Employee.Initials}";
+
+    private Task CopyLog(WorkLog log)
+    {
+        _copiedEntry = CopiedCalendarEntry.From(log);
+        HideCalendarContextMenu();
+        Snackbar.Add($"Copied entry for {_copiedEntry.EmployeeName}", Severity.Success);
+        return Task.CompletedTask;
+    }
+
     private bool CanPasteCopiedEntryTo(DateOnly targetDate) =>
         _copiedEntry is not null && _copiedEntry.SourceDate != targetDate;
+
+    private Task PasteCopiedEntryToDateAsync(DateOnly targetDate)
+    {
+        _calendarContextMenu = new CalendarContextMenuState
+        {
+            TargetDate = targetDate
+        };
+
+        return PasteContextMenuEntryAsync();
+    }
 
     private async Task PasteContextMenuEntryAsync()
     {

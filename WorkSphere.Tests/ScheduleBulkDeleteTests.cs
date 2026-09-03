@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -205,6 +206,115 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             Assert.NotNull(cut.Find("[data-log-id='99']"));
             Assert.Empty(cut.FindAll("[data-testid='calendar-context-menu']"));
         });
+    }
+
+    [Fact]
+    public void MobileAgenda_RendersDayCardsWithEntrySummariesAndActions()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderCalendar();
+
+        var mobileAgenda = cut.Find("[data-testid='mobile-calendar-agenda']");
+        var dayCard = cut.Find("[data-mobile-calendar-day='2026-08-01']");
+        var emptyDayCard = cut.Find("[data-mobile-calendar-day='2026-08-04']");
+
+        Assert.Contains("Saturday, August 1", dayCard.TextContent);
+        Assert.Contains("1 entry scheduled", dayCard.TextContent);
+        Assert.NotNull(mobileAgenda);
+        Assert.NotNull(cut.Find("[data-mobile-log-id='1']"));
+        Assert.NotNull(cut.Find("button[aria-label='Edit mobile log 1']"));
+        Assert.NotNull(cut.Find("button[aria-label='Copy mobile log 1']"));
+        Assert.NotNull(cut.Find("button[aria-label='Delete mobile log 1']"));
+        Assert.Contains("No schedule entries for this day.", emptyDayCard.TextContent);
+    }
+
+    [Fact]
+    public void MobileAgenda_CopyThenPaste_CreatesEntryForTargetDay()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        var refreshedLogs = CreateLogs(1, 2, 3);
+        refreshedLogs.Add(new WorkLog
+        {
+            Id = 99,
+            EmployeeId = 101,
+            Employee = new Employee { Id = 101, Name = "Employee 1", Initials = "E1" },
+            LogDate = new DateOnly(2026, 8, 2),
+            LogTime = new TimeOnly(9, 0),
+            MainCategory = "Work",
+            SubCategory = "In-Office",
+            Details = "Details 1",
+            OriginalDetails = "Details 1"
+        });
+
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, refreshedLogs);
+        harness.WorkLogServiceMock
+            .Setup(service => service.AddWorkLogAsync(It.IsAny<WorkLog>()))
+            .Returns(Task.CompletedTask);
+
+        var cut = harness.RenderCalendar();
+
+        cut.Find("button[aria-label='Copy mobile log 1']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var targetDayButtons = cut.Find("[data-mobile-calendar-day='2026-08-02']").QuerySelectorAll("button");
+            Assert.Contains(targetDayButtons, button => button.TextContent.Contains("Paste", StringComparison.Ordinal));
+        });
+
+        FindButtonByText(cut.Find("[data-mobile-calendar-day='2026-08-02']"), "Paste").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            harness.WorkLogServiceMock.Verify(service => service.AddWorkLogAsync(It.Is<WorkLog>(log =>
+                log.Id == 0 &&
+                log.LogDate == new DateOnly(2026, 8, 2) &&
+                log.LogTime == new TimeOnly(9, 0) &&
+                log.EmployeeId == 101 &&
+                log.MainCategory == "Work" &&
+                log.SubCategory == "In-Office" &&
+                log.Details == "Details 1" &&
+                log.OriginalDetails == "Details 1")), Times.Once);
+
+            harness.SnackbarMock.Verify(snackbar => snackbar.Add("Pasted entry for Employee 1 to 08/02/2026", Severity.Success, It.IsAny<Action<SnackbarOptions>>(), It.IsAny<string?>()), Times.Once);
+            Assert.NotNull(cut.Find("[data-mobile-log-id='99']"));
+        });
+    }
+
+    [Fact]
+    public void ScheduleListView_RendersMobileFeedCardsAndDesktopTableShell()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.Render();
+
+        Assert.NotEmpty(cut.FindAll(".mobile-feed-card"));
+        Assert.NotNull(cut.Find(".schedule-table-shell"));
+        Assert.Contains("Search records", cut.Markup);
+        Assert.DoesNotContain("schedule-list-search", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScheduleAuditView_RendersResponsiveToolbarAndMobileCards()
+    {
+        Directory.CreateDirectory(Path.Combine(_contentRoot, "Import"));
+        File.WriteAllText(
+            Path.Combine(_contentRoot, "Import", "2026-08.md"),
+            "| Date | Time | Initials | Details |\n| --- | --- | --- | --- |\n| 08/01/26 | 9:00 AM | E1 | Arrive in Office |\n");
+
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderAudit();
+
+        Assert.NotNull(cut.Find(".schedule-audit-toolbar"));
+        Assert.NotEmpty(cut.FindAll(".schedule-audit-select"));
+        Assert.NotNull(cut.Find(".schedule-audit-refresh"));
+        Assert.NotNull(cut.Find(".mobile-audit-card"));
+        Assert.NotNull(cut.Find(".schedule-table-shell"));
+        Assert.DoesNotContain("ml-4", cut.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -440,6 +550,10 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
         });
     }
 
+    private static IElement FindButtonByText(IElement container, string text) =>
+        container.QuerySelectorAll("button")
+            .Single(button => button.TextContent.Contains(text, StringComparison.Ordinal));
+
     private static object? GetCopiedEntry(IRenderedComponent<Schedule> cut) =>
         typeof(Schedule)
             .GetField("_copiedEntry", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -452,6 +566,7 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
     {
         private readonly Mock<IDialogService> _dialogServiceMock = new();
         private readonly Mock<ISnackbar> _snackbarMock = new();
+        private readonly DateOnly? _calendarFocusDate;
 
         public ScheduleTestHarness(
             string contentRoot,
@@ -463,6 +578,7 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             Exception? deleteSingleException = null)
         {
             Directory.CreateDirectory(Path.Combine(contentRoot, "Import"));
+            _calendarFocusDate = initialLogs.FirstOrDefault(log => log.LogDate.HasValue)?.LogDate;
 
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
@@ -554,8 +670,64 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             RenderComponent<MudPopoverProvider>();
             RenderComponent<MudDialogProvider>();
             var component = RenderComponent<Schedule>();
+
+            if (_calendarFocusDate.HasValue)
+            {
+                SetCalendarMonth(component, _calendarFocusDate.Value);
+            }
+
             component.WaitForAssertion(() => Assert.Contains("calendar-grid", component.Markup));
             return component;
+        }
+
+        public IRenderedComponent<Schedule> RenderAudit()
+        {
+            RenderComponent<MudThemeProvider>();
+            RenderComponent<MudPopoverProvider>();
+            RenderComponent<MudDialogProvider>();
+            var component = RenderComponent<Schedule>();
+
+            if (_calendarFocusDate.HasValue)
+            {
+                var auditYearField = typeof(Schedule).GetField("_auditYear", BindingFlags.Instance | BindingFlags.NonPublic);
+                var auditMonthField = typeof(Schedule).GetField("_auditMonth", BindingFlags.Instance | BindingFlags.NonPublic);
+                var loadAuditDataMethod = typeof(Schedule).GetMethod("LoadAuditData", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(auditYearField);
+                Assert.NotNull(auditMonthField);
+                Assert.NotNull(loadAuditDataMethod);
+
+                component.InvokeAsync(async () =>
+                {
+                    auditYearField!.SetValue(component.Instance, _calendarFocusDate.Value.Year);
+                    auditMonthField!.SetValue(component.Instance, _calendarFocusDate.Value.Month);
+                    await (Task)loadAuditDataMethod!.Invoke(component.Instance, null)!;
+                    typeof(ComponentBase)
+                        .GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke(component.Instance, null);
+                }).GetAwaiter().GetResult();
+            }
+
+            component.FindAll("[role='tab']")
+                .Single(tab => tab.TextContent.Contains("Audit", StringComparison.Ordinal))
+                .Click();
+            component.WaitForAssertion(() => Assert.Contains("Refresh Audit", component.Markup));
+            return component;
+        }
+
+        private static void SetCalendarMonth(IRenderedComponent<Schedule> component, DateOnly targetDate)
+        {
+            var currentDateField = typeof(Schedule).GetField("_currentDate", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(currentDateField);
+
+            component.InvokeAsync(() =>
+            {
+                currentDateField!.SetValue(component.Instance, new DateTime(targetDate.Year, targetDate.Month, 1));
+                typeof(ComponentBase)
+                    .GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .Invoke(component.Instance, null);
+            }).GetAwaiter().GetResult();
+
+            component.WaitForAssertion(() => Assert.Contains($"data-calendar-day=\"{targetDate:yyyy-MM}-01\"", component.Markup));
         }
     }
 }
