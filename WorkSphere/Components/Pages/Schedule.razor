@@ -357,14 +357,14 @@
 
     @* --- AUDIT TAB --- *@
     <MudTabPanel Text="Audit" Icon="@Icons.Material.Filled.FactCheck">
-        <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
-            <MudSelect T="int" Label="Year" Value="@_auditYear" ValueChanged="OnAuditYearChanged" Dense="true" Style="max-width: 120px;">
+        <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="mb-4 schedule-audit-toolbar">
+            <MudSelect T="int" Label="Year" Value="@_auditYear" ValueChanged="OnAuditYearChanged" Dense="true" Class="schedule-audit-select schedule-audit-select--year" Style="max-width: 120px;">
                 @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
                 {
                     <MudSelectItem Value="@y" />
                 }
             </MudSelect>
-            <MudSelect T="int" Label="Month" Value="@_auditMonth" ValueChanged="OnAuditMonthChanged" Dense="true" Style="max-width: 150px;">
+            <MudSelect T="int" Label="Month" Value="@_auditMonth" ValueChanged="OnAuditMonthChanged" Dense="true" Class="schedule-audit-select schedule-audit-select--month" Style="max-width: 150px;">
                 <MudSelectItem Value="0">All</MudSelectItem>
                 <MudSelectItem Value="1">January</MudSelectItem>
                 <MudSelectItem Value="2">February</MudSelectItem>
@@ -379,14 +379,16 @@
                 <MudSelectItem Value="11">November</MudSelectItem>
                 <MudSelectItem Value="12">December</MudSelectItem>
             </MudSelect>
-            <MudSelect T="string" Label="Filter Status" @bind-Value="_auditFilter" Dense="true" Style="max-width: 180px;" Class="ml-4">
+            <MudSelect T="string" Label="Filter Status" @bind-Value="_auditFilter" Dense="true" Style="max-width: 180px;" Class="schedule-audit-select schedule-audit-filter">
                 <MudSelectItem Value="@("All")">Show All</MudSelectItem>
                 <MudSelectItem Value="@("Missing")">Missing in DB</MudSelectItem>
                 <MudSelectItem Value="@("Extra")">DB Only (Extra)</MudSelectItem>
                 <MudSelectItem Value="@("Mismatch")">Mismatches</MudSelectItem>
             </MudSelect>
             <MudSpacer />
-            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAuditData">Refresh Audit</MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Info" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAuditData" Class="schedule-audit-refresh">
+                Refresh Audit
+            </MudButton>
         </MudStack>
 
         <MudAlert Severity="Severity.Info" Class="mb-4" Variant="Variant.Outlined">
@@ -560,8 +562,29 @@
     }
 
     .schedule-calendar-toolbar,
-    .schedule-list-toolbar {
+    .schedule-list-toolbar,
+    .schedule-audit-toolbar {
         gap: 1rem;
+    }
+
+    .schedule-audit-select {
+        flex: 0 1 180px;
+    }
+
+    .schedule-audit-select--year {
+        flex-basis: 120px;
+    }
+
+    .schedule-audit-select--month {
+        flex-basis: 150px;
+    }
+
+    .schedule-audit-filter {
+        flex-basis: 180px;
+    }
+
+    .schedule-audit-refresh {
+        flex-shrink: 0;
     }
 
     .schedule-calendar-navigation {
@@ -777,7 +800,8 @@
 
     @@media (max-width: 599.95px) {
         .schedule-calendar-toolbar,
-        .schedule-list-toolbar {
+        .schedule-list-toolbar,
+        .schedule-audit-toolbar {
             align-items: stretch;
         }
 
@@ -809,26 +833,15 @@
             flex: 1 1 auto;
         }
 
-        .schedule-list-table .mud-table-toolbar {
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 0.75rem;
-        }
-
-        .schedule-list-search {
+        .schedule-audit-select,
+        .schedule-audit-refresh {
             width: 100%;
+            max-width: none !important;
+            flex: 1 1 100%;
         }
 
-        .schedule-list-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 0.25rem;
-        }
-
-        .schedule-list-table .mud-table-cell {
-            padding-top: 0.75rem;
-            padding-bottom: 0.75rem;
+        .schedule-audit-refresh {
+            justify-content: center;
         }
     }
 

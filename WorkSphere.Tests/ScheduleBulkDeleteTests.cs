@@ -283,6 +283,41 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
     }
 
     [Fact]
+    public void ScheduleListView_RendersMobileFeedCardsAndDesktopTableShell()
+    {
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.Render();
+
+        Assert.NotEmpty(cut.FindAll(".mobile-feed-card"));
+        Assert.NotNull(cut.Find(".schedule-table-shell"));
+        Assert.Contains("Search records", cut.Markup);
+        Assert.DoesNotContain("schedule-list-search", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ScheduleAuditView_RendersResponsiveToolbarAndMobileCards()
+    {
+        Directory.CreateDirectory(Path.Combine(_contentRoot, "Import"));
+        File.WriteAllText(
+            Path.Combine(_contentRoot, "Import", "2026-08.md"),
+            "| Date | Time | Initials | Details |\n| --- | --- | --- | --- |\n| 08/01/26 | 9:00 AM | E1 | Arrive in Office |\n");
+
+        var initialLogs = CreateLogs(1, 2, 3);
+        using var harness = new ScheduleTestHarness(_contentRoot, initialLogs, initialLogs);
+
+        var cut = harness.RenderAudit();
+
+        Assert.NotNull(cut.Find(".schedule-audit-toolbar"));
+        Assert.NotEmpty(cut.FindAll(".schedule-audit-select"));
+        Assert.NotNull(cut.Find(".schedule-audit-refresh"));
+        Assert.NotNull(cut.Find(".mobile-audit-card"));
+        Assert.NotNull(cut.Find(".schedule-table-shell"));
+        Assert.DoesNotContain("ml-4", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CalendarEntryContextMenu_DeleteAction_DeletesEntryAndClosesMenu()
     {
         var initialLogs = CreateLogs(1, 2, 3);
@@ -642,6 +677,40 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             }
 
             component.WaitForAssertion(() => Assert.Contains("calendar-grid", component.Markup));
+            return component;
+        }
+
+        public IRenderedComponent<Schedule> RenderAudit()
+        {
+            RenderComponent<MudThemeProvider>();
+            RenderComponent<MudPopoverProvider>();
+            RenderComponent<MudDialogProvider>();
+            var component = RenderComponent<Schedule>();
+
+            if (_calendarFocusDate.HasValue)
+            {
+                var auditYearField = typeof(Schedule).GetField("_auditYear", BindingFlags.Instance | BindingFlags.NonPublic);
+                var auditMonthField = typeof(Schedule).GetField("_auditMonth", BindingFlags.Instance | BindingFlags.NonPublic);
+                var loadAuditDataMethod = typeof(Schedule).GetMethod("LoadAuditData", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.NotNull(auditYearField);
+                Assert.NotNull(auditMonthField);
+                Assert.NotNull(loadAuditDataMethod);
+
+                component.InvokeAsync(async () =>
+                {
+                    auditYearField!.SetValue(component.Instance, _calendarFocusDate.Value.Year);
+                    auditMonthField!.SetValue(component.Instance, _calendarFocusDate.Value.Month);
+                    await (Task)loadAuditDataMethod!.Invoke(component.Instance, null)!;
+                    typeof(ComponentBase)
+                        .GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+                        .Invoke(component.Instance, null);
+                }).GetAwaiter().GetResult();
+            }
+
+            component.FindAll("[role='tab']")
+                .Single(tab => tab.TextContent.Contains("Audit", StringComparison.Ordinal))
+                .Click();
+            component.WaitForAssertion(() => Assert.Contains("Refresh Audit", component.Markup));
             return component;
         }
 
