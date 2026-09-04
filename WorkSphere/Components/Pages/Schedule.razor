@@ -44,7 +44,7 @@
          ActivePanelIndex="@_activeScheduleTabIndex"
          ActivePanelIndexChanged="OnActiveScheduleTabChanged">
     @* --- CALENDAR TAB --- *@
-    <MudTabPanel Text="Calendar" Icon="@Icons.Material.Filled.CalendarMonth">
+    <MudTabPanel Text="@ScheduleTabOptions[0].Label" Icon="@ScheduleTabOptions[0].Icon">
         <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-4 schedule-calendar-toolbar">
             <MudStack Row="true" AlignItems="AlignItems.Center" Class="schedule-calendar-navigation">
                 <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" OnClick="PreviousMonth" aria-label="Previous month" />
@@ -229,7 +229,7 @@
     </MudTabPanel>
 
     @* --- LOGS TAB --- *@
-    <MudTabPanel Text="List View" Icon="@Icons.Material.Filled.List">
+    <MudTabPanel Text="@ScheduleTabOptions[1].Label" Icon="@ScheduleTabOptions[1].Icon">
         <MudStack Row="true" Class="mb-4 schedule-list-toolbar schedule-toolbar" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2">
             <MudButtonGroup Color="Color.Primary" Variant="Variant.Filled">
                 <MudButton OnClick="@(() => OpenAddDialog(null))" StartIcon="@Icons.Material.Filled.Add">Add Entry</MudButton>
@@ -382,7 +382,7 @@
     </MudTabPanel>
 
     @* --- AUDIT TAB --- *@
-    <MudTabPanel Text="Audit" Icon="@Icons.Material.Filled.FactCheck">
+    <MudTabPanel Text="@ScheduleTabOptions[2].Label" Icon="@ScheduleTabOptions[2].Icon">
         <MudStack Row="true" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center" Class="mb-4 schedule-audit-toolbar">
             <MudSelect T="int" Label="Year" Value="@_auditYear" ValueChanged="OnAuditYearChanged" Dense="true" Class="schedule-audit-select schedule-audit-select--year" Style="max-width: 120px;">
                 @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
