@@ -2,10 +2,10 @@ name: Docker Build and Publish
 
 on:
   push:
-    # Publish semver tags as releases.
-    tags: [ '*.*.*' ]
-  pull_request:
-    branches: [ "main" ]
+    # Publish semver tags as releases (e.g. 1.0.0 or v1.0.0).
+    tags: [ '*.*.*', 'v*.*.*' ]
+  release:
+    types: [ published ]
   workflow_dispatch:
 
 env:
