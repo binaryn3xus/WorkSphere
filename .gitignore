@@ -8,6 +8,7 @@ obj/
 *.user
 *.userosscache
 *.sln.docstates
+*.lscache
 .vs/
 .vs*
 [Dd]ebug/
