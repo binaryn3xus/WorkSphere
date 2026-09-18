@@ -340,10 +340,10 @@
                 </ToolBarContent>
                 <HeaderContent>
                     <MudTh>
-                        <MudCheckBox T="bool"
-                                     Value="@AreAllVisibleLogsSelected"
+                        <MudCheckBox T="bool?"
+                                     Value="@SelectAllCheckboxState"
                                      ValueChanged="ToggleSelectAllVisibleLogs"
-                                     Indeterminate="@HasPartialVisibleSelection"
+                                     TriState="true"
                                      Disabled="!FilteredLogs.Any() || _isDeletingLogs"
                                      aria-label="Select all visible logs" />
                     </MudTh>
@@ -967,6 +967,10 @@
     private int VisibleSelectedLogCount => FilteredLogs.Count(log => _selectedLogIds.Contains(log.Id));
     private bool AreAllVisibleLogsSelected => FilteredLogs.Any() && FilteredLogs.All(log => _selectedLogIds.Contains(log.Id));
     private bool HasPartialVisibleSelection => FilteredLogs.Any(log => _selectedLogIds.Contains(log.Id)) && !AreAllVisibleLogsSelected;
+    private bool? SelectAllCheckboxState =>
+        !FilteredLogs.Any() ? false :
+        AreAllVisibleLogsSelected ? true :
+        HasPartialVisibleSelection ? null : false;
     private bool HasCopiedEntry => _copiedEntry is not null;
     private bool CanDeleteCalendarContextMenuLog =>
         _calendarContextMenu.Log is { Id: > 0 } log &&
@@ -1516,11 +1520,12 @@
         return Task.CompletedTask;
     }
 
-    private Task ToggleSelectAllVisibleLogs(bool selectAll)
+    private Task ToggleSelectAllVisibleLogs(bool? selectAll)
     {
+        bool shouldSelect = !AreAllVisibleLogsSelected;
         foreach (var logId in FilteredLogs.Select(log => log.Id))
         {
-            if (selectAll)
+            if (shouldSelect)
             {
                 _selectedLogIds.Add(logId);
             }

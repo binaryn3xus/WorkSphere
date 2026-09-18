@@ -675,8 +675,8 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             _dialogServiceMock
                 .Setup(service => service.ShowMessageBoxAsync(
                     It.IsAny<string?>(),
-                    It.IsAny<string?>(),
-                    It.IsAny<string?>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
                     It.IsAny<string?>(),
                     It.IsAny<string?>(),
                     It.IsAny<DialogOptions?>()))
