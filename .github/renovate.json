@@ -14,14 +14,14 @@
     {
       "description": "Group test dependencies together",
       "matchDatasources": ["nuget"],
-      "matchPackagePatterns": [
-        "^Microsoft\\.NET\\.Test\\.Sdk",
-        "^xunit",
-        "^bunit",
-        "^Moq",
-        "^coverlet\\."
-      ],
-      "groupName": "Test dependencies"
+      "groupName": "Test dependencies",
+      "matchPackageNames": [
+        "/^Microsoft\\.NET\\.Test\\.Sdk/",
+        "/^xunit/",
+        "/^bunit/",
+        "/^Moq/",
+        "/^coverlet\\./"
+      ]
     },
     {
       "description": "Group GitHub Actions updates",
