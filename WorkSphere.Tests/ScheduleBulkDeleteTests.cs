@@ -612,7 +612,7 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
     private static T GetPrivateField<T>(object instance, string fieldName) =>
         (T)instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
 
-    private sealed class ScheduleTestHarness : TestContext
+    private sealed class ScheduleTestHarness : BunitContext
     {
         private readonly Mock<IDialogService> _dialogServiceMock = new();
         private readonly Mock<ISnackbar> _snackbarMock = new();
@@ -703,10 +703,10 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
 
         public IRenderedComponent<Schedule> Render()
         {
-            RenderComponent<MudThemeProvider>();
-            RenderComponent<MudPopoverProvider>();
-            RenderComponent<MudDialogProvider>();
-            var component = RenderComponent<Schedule>();
+            base.Render<MudThemeProvider>();
+            base.Render<MudPopoverProvider>();
+            base.Render<MudDialogProvider>();
+            var component = base.Render<Schedule>();
             component.FindAll("[role='tab']")
                 .Single(tab => tab.TextContent.Contains("List View", StringComparison.Ordinal))
                 .Click();
@@ -716,10 +716,10 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
 
         public IRenderedComponent<Schedule> RenderCalendar()
         {
-            RenderComponent<MudThemeProvider>();
-            RenderComponent<MudPopoverProvider>();
-            RenderComponent<MudDialogProvider>();
-            var component = RenderComponent<Schedule>();
+            base.Render<MudThemeProvider>();
+            base.Render<MudPopoverProvider>();
+            base.Render<MudDialogProvider>();
+            var component = base.Render<Schedule>();
 
             if (_calendarFocusDate.HasValue)
             {
@@ -732,10 +732,10 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
 
         public IRenderedComponent<Schedule> RenderAudit()
         {
-            RenderComponent<MudThemeProvider>();
-            RenderComponent<MudPopoverProvider>();
-            RenderComponent<MudDialogProvider>();
-            var component = RenderComponent<Schedule>();
+            base.Render<MudThemeProvider>();
+            base.Render<MudPopoverProvider>();
+            base.Render<MudDialogProvider>();
+            var component = base.Render<Schedule>();
 
             if (_calendarFocusDate.HasValue)
             {
@@ -778,6 +778,14 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             }).GetAwaiter().GetResult();
 
             component.WaitForAssertion(() => Assert.Contains($"data-calendar-day=\"{targetDate:yyyy-MM}-01\"", component.Markup));
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         }
     }
 }
