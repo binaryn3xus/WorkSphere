@@ -4,6 +4,7 @@
     "config:recommended"
   ],
   "labels": ["dependencies"],
+  "ignoreUnstable": true,
   "packageRules": [
     {
       "description": "Group non-major NuGet package updates",
@@ -33,6 +34,11 @@
       "description": "Group Docker base image updates",
       "matchDatasources": ["docker"],
       "groupName": "Docker dependencies"
+    },
+    {
+      "description": "Ignore rc, beta, preview, and pre-release versions for Docker images",
+      "matchDatasources": ["docker"],
+      "allowedVersions": "!/(rc|preview|alpha|beta|dev)/i"
     }
   ],
   "vulnerabilityAlerts": {
