@@ -33,6 +33,7 @@ try
     builder.Services.AddScoped<IWorkLogService>(sp => sp.GetRequiredService<WorkLogService>());
     builder.Services.AddScoped<MigrationService>();
     builder.Services.AddScoped<IExportService, ExportService>();
+    builder.Services.AddScoped<IRestoreService, RestoreService>();
     builder.Services.AddSingleton<WorkSphere.Models.BackupSchedulerState>();
     builder.Services.AddHostedService<ExportBackgroundService>();
     builder.Services.AddScoped<WorkSphere.Tools.LogAuditTool>();

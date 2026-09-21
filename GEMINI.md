@@ -17,15 +17,17 @@ WorkSphere is a comprehensive work logging and employee management system built 
 - **Data Layer:** Uses Dapper with custom type handlers (`DapperTypeHandlers.cs`) for modern .NET types like `DateOnly` and `TimeOnly`.
 - **Service Layer:** 
   - `WorkLogService` (`IWorkLogService`): Manages CRUD operations for employees, work logs, and incidents. It also handles statistical queries for categories, employee activity, and comp time.
-  - `MigrationService`: Handles importing legacy work logs from Markdown-formatted daily log files.
-  - `ExportService` (`IExportService`): Generates RFC 4180 CSV exports, Obsidian markdown archives, and complete JSON database snapshots. Also provides headless CLI execution for Kubernetes CronJobs.
-  - `ExportBackgroundService`: Built-in .NET `BackgroundService` that automatically runs scheduled database exports and backups while the web host is running.
+  - `RestoreService` (`IRestoreService`): Handles restoring complete JSON database snapshots and importing RFC 4180 CSV work log exports. Features automatic deduplication, dynamic ID remapping (employees and incidents), and auto-creation of missing employee records. Also manages discovering existing server-side backup snapshots.
+  - `MigrationService`: Legacy parser utility used for Markdown daily log audits in schedule analysis.
+  - `ExportService` (`IExportService`): Generates RFC 4180 CSV exports, Markdown notes, and complete JSON database snapshots into timestamped snapshot folders (`snapshot-YYYYMMDD-HHmmss`). Also provides headless CLI execution for Kubernetes CronJobs and automated backup retention cleanup (`MaxBackupHistory`).
+  - `ExportBackgroundService`: Built-in .NET `BackgroundService` that automatically runs scheduled database exports and backups via Cron expressions while the web host is running.
 - **Features:**
   - **Incident Tracking:** Track incidents with ticket numbers and link them to work logs.
   - **Comp Time Tracker:** Automatically calculate comp time earned based on logs marked as "Comp Time".
   - **Analytics Dashboard:** Visual representation of log distribution, employee activity, comp time stats, and customizable date range presets with employee filtering.
-  - **Data Export Hub:** Web-based and server-side exports supporting customizable CSVs, Obsidian monthly markdown, and full JSON database backups.
-  - **Automated Scheduled Backups:** In-process daily scheduled backups via `ExportBackgroundService` as well as headless CLI `--backup` / `--export` mode for Kubernetes CronJobs.
+  - **Data Export Hub:** Web-based and server-side exports supporting customizable CSVs, Markdown notes, and full JSON database snapshots.
+  - **Data Restore & Import Hub:** Restore from server-side snapshot folders or upload `.json` / `.csv` files directly with automatic deduplication and ID remapping.
+  - **Automated Scheduled Backups:** In-process scheduled backups via `ExportBackgroundService` (Cron schedule) with snapshot history retention management, as well as headless CLI `--backup` / `--export` mode for Kubernetes CronJobs.
   - **Client Preferences:** LocalStorage persistence for selected theme (Dark/Light mode) and preferred employee auto-selection on quick logging.
 
 ---

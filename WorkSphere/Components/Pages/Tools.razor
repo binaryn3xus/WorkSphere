@@ -2,64 +2,197 @@
 @using WorkSphere.Services
 @using WorkSphere.Models
 @using System.Text
-@inject MigrationService MigrationService
+@using System.IO
+@inject IRestoreService RestoreService
 @inject IWorkLogService WorkLogService
 @inject IExportService ExportService
 @inject BackupSchedulerState SchedulerState
 @inject IConfiguration Configuration
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
+@inject IDialogService DialogService
 
-<MudText Typo="Typo.h4" GutterBottom="true">System Tools & Backups</MudText>
+<div class="mb-4">
+    <MudText Typo="Typo.h4">System Tools & Backups</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">
+        Manage server snapshots, database restore points, customized data exports, and automation schedules.
+    </MudText>
+</div>
 
-<MudGrid>
-    <!-- Left Column: Data Import -->
-    <MudItem xs="12" lg="4">
-        <MudCard Elevation="3" Class="h-100 d-flex flex-column">
-            <MudCardHeader>
-                <CardHeaderContent>
-                    <MudText Typo="Typo.h6">Legacy Data Import</MudText>
-                </CardHeaderContent>
-                <CardHeaderActions>
-                    <MudIcon Icon="@Icons.Material.Filled.UploadFile" Color="Color.Primary" />
-                </CardHeaderActions>
-            </MudCardHeader>
-            <MudCardContent Class="flex-grow-1">
-                <MudStack Spacing="3">
-                    <MudText Typo="Typo.body2">
-                        Import historical daily work logs from Markdown tables. Files should be located on the server in the <code>WorkSphere/Import</code> directory.
-                    </MudText>
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
-                        Parses tables formatted as <code>| Date | Time | Initials | Details |</code>, auto-links records by employee initials, and deduplicates existing logs.
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Color="Color.Primary" KeepPanelsAlive="true">
+    <!-- Tab 1: Backups & Snapshots -->
+    <MudTabPanel Text="Backups & Snapshots" Icon="@Icons.Material.Filled.Storage" Class="pa-4">
+        <MudStack Spacing="4">
+            <!-- Header Action & Scheduler Summary Card -->
+            <MudCard Elevation="1">
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="flex-wrap gap-3">
+                        <div>
+                            <MudText Typo="Typo.h6">Server Snapshots</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Snapshots contain a complete JSON database dump, CSV logs, and monthly Markdown notes stored in <code>@_defaultExportDir</code>.
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Backup"
+                                   OnClick="TriggerServerBackupAsync"
+                                   Disabled="@_isExporting">
+                            @(_isExporting ? "Creating Backup..." : "Create Server Backup Now")
+                        </MudButton>
+                    </MudStack>
+
+                    <MudDivider Class="my-3" />
+
+                    <!-- Scheduler Status Bar -->
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Class="flex-wrap gap-4">
+                        <div class="d-flex align-center">
+                            <MudText Typo="Typo.caption" Class="me-2 text-muted">Scheduler:</MudText>
+                            <MudChip T="string" Color="@(SchedulerState.IsEnabled ? Color.Success : Color.Default)" Size="Size.Small" Variant="Variant.Filled">
+                                @(SchedulerState.IsEnabled ? $"Active ({SchedulerState.CronExpression})" : "Disabled")
+                            </MudChip>
+                        </div>
+
+                        <div class="d-flex align-center">
+                            <MudText Typo="Typo.caption" Class="me-2 text-muted">Retention:</MudText>
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Outlined">
+                                @(_maxBackupHistory.HasValue && _maxBackupHistory.Value > 0 ? $"Keep last {_maxBackupHistory.Value} backups" : "Unlimited history")
+                            </MudChip>
+                        </div>
+
+                        @if (SchedulerState.NextRunUtc.HasValue)
+                        {
+                            <div class="d-flex align-center">
+                                <MudText Typo="Typo.caption" Class="me-1 text-muted">Next Run:</MudText>
+                                <MudText Typo="Typo.body2">@SchedulerState.NextRunUtc.Value.ToString("yyyy-MM-dd HH:mm") UTC</MudText>
+                            </div>
+                        }
+
+                        @if (SchedulerState.LastRunUtc.HasValue)
+                        {
+                            <div class="d-flex align-center">
+                                <MudText Typo="Typo.caption" Class="me-1 text-muted">Last Run:</MudText>
+                                <MudText Typo="Typo.body2">
+                                    @SchedulerState.LastRunUtc.Value.ToString("yyyy-MM-dd HH:mm") UTC
+                                    @(SchedulerState.LastRunSuccess == true ? " (Success)" : " (Failed)")
+                                </MudText>
+                            </div>
+                        }
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+
+            <!-- Feedback Alert for Snapshot Restore -->
+            @if (_lastRestoreResult != null && _lastRestoreSource == "Snapshot")
+            {
+                <MudAlert Severity="@(_lastRestoreResult.Success ? Severity.Success : Severity.Error)" Variant="Variant.Outlined" Dense="true" ShowCloseIcon="true" CloseIconClicked="() => _lastRestoreResult = null">
+                    @if (_lastRestoreResult.Success)
+                    {
+                        <div>
+                            <strong>Snapshot Restore Completed Successfully:</strong>
+                            Restored @_lastRestoreResult.WorkLogsRestored work logs (Skipped @_lastRestoreResult.WorkLogsSkipped duplicates).
+                            Employees added: @_lastRestoreResult.EmployeesRestored | Incidents added: @_lastRestoreResult.IncidentsRestored.
+                        </div>
+                    }
+                    else
+                    {
+                        <div><strong>Restore Failed:</strong> @_lastRestoreResult.ErrorMessage</div>
+                    }
+                </MudAlert>
+            }
+
+            @if (_isRestoring)
+            {
+                <MudPaper Elevation="0" Class="pa-3 d-flex align-center justify-center mud-background-gray rounded">
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" Class="me-3" />
+                    <MudText Typo="Typo.body2">Restoring database snapshot records, please wait...</MudText>
+                </MudPaper>
+            }
+
+            <!-- Server Snapshots Table -->
+            <MudTable Items="@_serverSnapshots"
+                      Dense="true"
+                      Hover="true"
+                      Elevation="1"
+                      Breakpoint="Breakpoint.Sm"
+                      Loading="@_isRestoring">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Available Server Snapshots (@_serverSnapshots.Count)</MudText>
+                    <MudSpacer />
+                    <MudTooltip Text="Refresh snapshot list">
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Default" OnClick="RefreshSnapshots" aria-label="Refresh snapshot list" />
+                    </MudTooltip>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Snapshot Directory</MudTh>
+                    <MudTh>Timestamp (UTC)</MudTh>
+                    <MudTh>Included Backups</MudTh>
+                    <MudTh>Total Size</MudTh>
+                    <MudTh Style="text-align: right;">Action</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Snapshot Directory">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icons.Material.Filled.FolderZip" Color="Color.Primary" Size="Size.Small" Class="me-2" />
+                            <strong>@context.DirectoryName</strong>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Timestamp (UTC)">
+                        @(context.TimestampUtc.HasValue ? context.TimestampUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") : "-")
+                    </MudTd>
+                    <MudTd DataLabel="Included Backups">
+                        <MudStack Row="true" Spacing="1">
+                            @if (context.HasJsonBackup)
+                            {
+                                <MudChip T="string" Color="Color.Primary" Size="Size.Small" Variant="Variant.Text">JSON DB</MudChip>
+                            }
+                            @if (context.HasCsvBackup)
+                            {
+                                <MudChip T="string" Color="Color.Secondary" Size="Size.Small" Variant="Variant.Text">CSV Logs</MudChip>
+                            }
+                            @if (context.MarkdownFileCount > 0)
+                            {
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">@context.MarkdownFileCount Notes</MudChip>
+                            }
+                        </MudStack>
+                    </MudTd>
+                    <MudTd DataLabel="Total Size">
+                        @FormatBytes(context.TotalSizeBytes)
+                    </MudTd>
+                    <MudTd DataLabel="Action" Style="text-align: right;">
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.SettingsBackupRestore"
+                                   OnClick="@(() => RestoreSnapshotWithConfirmationAsync(context))"
+                                   Disabled="@(_isRestoring || (!context.HasJsonBackup && !context.HasCsvBackup))">
+                            Restore
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Text" Class="my-2">
+                        No snapshots found in <code>@_defaultExportDir</code>. Click <strong>Create Server Backup Now</strong> above to generate your first snapshot.
                     </MudAlert>
-                </MudStack>
-            </MudCardContent>
-            <MudCardActions Class="pa-4">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportMarkdown" Disabled="@_isImporting" StartIcon="@Icons.Material.Filled.UploadFile">
-                    @(_isImporting ? "Importing..." : "Run Import")
-                </MudButton>
-                @if (_isImporting)
-                {
-                    <MudProgressCircular Class="ms-3" Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
-                }
-            </MudCardActions>
-        </MudCard>
-    </MudItem>
+                </NoRecordsContent>
+            </MudTable>
+        </MudStack>
+    </MudTabPanel>
 
-    <!-- Right Column: Export Hub -->
-    <MudItem xs="12" lg="8">
-        <MudCard Elevation="3" Class="h-100 d-flex flex-column">
+    <!-- Tab 2: Custom Data Export -->
+    <MudTabPanel Text="Custom Data Export" Icon="@Icons.Material.Filled.Download" Class="pa-4">
+        <MudCard Elevation="1">
             <MudCardHeader>
                 <CardHeaderContent>
                     <MudText Typo="Typo.h6">Data Export Hub</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Configure filters and download customized work logs, comp time reports, or incident data directly to your device.
+                    </MudText>
                 </CardHeaderContent>
-                <CardHeaderActions>
-                    <MudIcon Icon="@Icons.Material.Filled.Download" Color="Color.Secondary" />
-                </CardHeaderActions>
             </MudCardHeader>
-            <MudCardContent Class="flex-grow-1">
+            <MudCardContent>
                 <MudGrid Spacing="3">
-                    <!-- Export Target -->
+                    <!-- Target & Format -->
                     <MudItem xs="12" sm="6">
                         <MudSelect T="string" Label="Export Data Target" Value="@_exportTarget" ValueChanged="OnExportTargetChanged" Variant="Variant.Outlined" Dense="true">
                             <MudSelectItem Value="@("WorkLogs")">Work Logs (Activity Records)</MudSelectItem>
@@ -69,9 +202,8 @@
                         </MudSelect>
                     </MudItem>
 
-                    <!-- Format Selection -->
                     <MudItem xs="12" sm="6">
-                        <MudSelect T="string" Label="Format" @bind-Value="_exportFormat" Variant="Variant.Outlined" Dense="true" Disabled="@(_exportTarget == "CompTime" || _exportTarget == "Incidents" || _exportTarget == "FullBackup")">
+                        <MudSelect T="string" Label="File Format" @bind-Value="_exportFormat" Variant="Variant.Outlined" Dense="true" Disabled="@(_exportTarget == "CompTime" || _exportTarget == "Incidents" || _exportTarget == "FullBackup")">
                             @if (_exportTarget == "WorkLogs")
                             {
                                 <MudSelectItem Value="@("CSV")">CSV (.csv)</MudSelectItem>
@@ -89,7 +221,7 @@
                         </MudSelect>
                     </MudItem>
 
-                    <!-- Filters for WorkLogs CSV -->
+                    <!-- WorkLogs CSV Options -->
                     @if (_exportTarget == "WorkLogs" && _exportFormat == "CSV")
                     {
                         <MudItem xs="12" sm="6">
@@ -108,7 +240,7 @@
                         @if (_selectedRangePreset == "Custom Range")
                         {
                             <MudItem xs="12" sm="6">
-                                <MudDateRangePicker Label="Custom Range" @bind-DateRange="_customDateRange" Variant="Variant.Outlined" />
+                                <MudDateRangePicker Label="Custom Date Range" @bind-DateRange="_customDateRange" Variant="Variant.Outlined" />
                             </MudItem>
                         }
 
@@ -162,80 +294,183 @@
                             </MudSelect>
                         </MudItem>
                     }
+                    else if (_exportTarget == "CompTime")
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                                Exports a comprehensive CSV report containing each employee's comp time earned, used, and remaining balance.
+                            </MudAlert>
+                        </MudItem>
+                    }
+                    else if (_exportTarget == "Incidents")
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                                Exports an incident registry CSV including ticket numbers, titles, outage durations, and closure statuses.
+                            </MudAlert>
+                        </MudItem>
+                    }
+                    else if (_exportTarget == "FullBackup")
+                    {
+                        <MudItem xs="12">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                                Exports a standalone JSON snapshot containing all employee records, incidents, and complete work log history.
+                            </MudAlert>
+                        </MudItem>
+                    }
                 </MudGrid>
             </MudCardContent>
-            <MudCardActions Class="pa-4 d-flex justify-space-between flex-wrap gap-2">
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="DownloadExportAsync" Disabled="@_isExporting" StartIcon="@Icons.Material.Filled.Download">
-                    Download to Device
-                </MudButton>
-
-                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TriggerServerBackupAsync" Disabled="@_isExporting" StartIcon="@Icons.Material.Filled.Storage">
-                    Run Server-Side Backup
+            <MudCardActions Class="pa-4 d-flex align-center">
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="DownloadExportAsync"
+                           Disabled="@_isExporting"
+                           StartIcon="@Icons.Material.Filled.Download">
+                    @(_isExporting ? "Generating Export..." : "Download Export to Device")
                 </MudButton>
 
                 @if (_isExporting)
                 {
-                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" Class="ms-3" />
                 }
             </MudCardActions>
         </MudCard>
-    </MudItem>
+    </MudTabPanel>
 
-    <!-- Automated Backups & Kubernetes CronJob Card -->
-    <MudItem xs="12">
-        <MudExpansionPanels Elevation="3">
-            <MudExpansionPanel Text="Automated Backups & Scheduling" Icon="@Icons.Material.Filled.Schedule">
-                <MudStack Spacing="3">
-                    <MudAlert Severity="@(SchedulerState.IsEnabled ? Severity.Success : Severity.Normal)" Variant="Variant.Outlined">
-                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                            <div>
-                                <MudText Typo="Typo.subtitle2">
-                                    <strong>In-Process Background Scheduler:</strong> @(SchedulerState.IsEnabled ? "Active" : "Disabled")
-                                    @if (SchedulerState.IsEnabled)
-                                    {
-                                        <span class="ms-2 mud-text-secondary">(Cron: <code>@SchedulerState.CronExpression</code>, Retention: @(_maxBackupHistory.HasValue && _maxBackupHistory.Value > 0 ? $"Keep last {_maxBackupHistory.Value} snapshots" : "Keep all snapshots"))</span>
-                                    }
-                                </MudText>
-                                @if (SchedulerState.NextRunUtc.HasValue)
-                                {
-                                    <MudText Typo="Typo.body2">
-                                        <strong>Next Automatic Backup:</strong> @SchedulerState.NextRunUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC
-                                    </MudText>
-                                }
-                                @if (SchedulerState.LastRunUtc.HasValue)
-                                {
-                                    <MudText Typo="Typo.body2">
-                                        <strong>Last Backup:</strong> @SchedulerState.LastRunUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC
-                                        @(SchedulerState.LastRunSuccess == true ? " (Success)" : $" (Failed: {SchedulerState.LastRunMessage})")
-                                    </MudText>
-                                }
-                            </div>
-                            @if (SchedulerState.IsRunningNow)
+    <!-- Tab 3: File Import & Restore -->
+    <MudTabPanel Text="File Import & Restore" Icon="@Icons.Material.Filled.UploadFile" Class="pa-4">
+        <MudGrid>
+            <MudItem xs="12" md="8" lg="6">
+                <MudCard Elevation="1">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Import & Restore File</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Upload a full system JSON snapshot or an RFC 4180 CSV export.
+                            </MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudStack Spacing="3">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                                <strong>Smart Import:</strong> Duplicate records are automatically skipped. Missing employees and incidents referenced in the file will be automatically created.
+                            </MudAlert>
+
+                            <MudFileUpload T="IBrowserFile" FilesChanged="OnUploadFileSelected" Accept=".json,.csv">
+                                <CustomContent>
+                                    <MudButton HtmlTag="label"
+                                               Variant="Variant.Outlined"
+                                               Color="Color.Primary"
+                                               FullWidth="true"
+                                               StartIcon="@Icons.Material.Filled.CloudUpload"
+                                               for="@context.FieldId">
+                                        Choose .json or .csv File
+                                    </MudButton>
+                                </CustomContent>
+                            </MudFileUpload>
+
+                            @if (_uploadedFile != null)
                             {
-                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Autorenew">Processing...</MudChip>
+                                <MudPaper Elevation="0" Class="pa-3 mud-background-gray rounded d-flex align-center justify-space-between">
+                                    <div>
+                                        <div class="d-flex align-center">
+                                            <MudIcon Icon="@(_uploadedFile.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ? Icons.Material.Filled.DataObject : Icons.Material.Filled.TableChart)"
+                                                     Color="Color.Primary"
+                                                     Class="me-2" />
+                                            <strong>@_uploadedFile.Name</strong>
+                                        </div>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            Size: @(Math.Round(_uploadedFile.Size / 1024.0, 1)) KB
+                                        </MudText>
+                                    </div>
+                                    <MudTooltip Text="Remove file">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="ClearUploadedFile" aria-label="Remove file" />
+                                    </MudTooltip>
+                                </MudPaper>
+
+                                <MudButton Variant="Variant.Filled"
+                                           Color="Color.Primary"
+                                           OnClick="RestoreUploadedFileAsync"
+                                           Disabled="@_isRestoring"
+                                           StartIcon="@Icons.Material.Filled.FileDownload">
+                                    @(_isRestoring ? "Importing..." : "Import & Restore Selected File")
+                                </MudButton>
+                            }
+
+                            @if (_isRestoring)
+                            {
+                                <div class="d-flex align-center mt-2">
+                                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" Class="me-2" />
+                                    <MudText Typo="Typo.caption">Processing and validating records...</MudText>
+                                </div>
+                            }
+
+                            @if (_lastRestoreResult != null && _lastRestoreSource == "File")
+                            {
+                                <MudAlert Severity="@(_lastRestoreResult.Success ? Severity.Success : Severity.Error)" Variant="Variant.Outlined" Dense="true" ShowCloseIcon="true" CloseIconClicked="() => _lastRestoreResult = null">
+                                    @if (_lastRestoreResult.Success)
+                                    {
+                                        <div>
+                                            <strong>File Import Completed:</strong>
+                                            <br />
+                                            Work logs restored: @_lastRestoreResult.WorkLogsRestored (Skipped @_lastRestoreResult.WorkLogsSkipped duplicates)
+                                            <br />
+                                            Employees created: @_lastRestoreResult.EmployeesRestored | Incidents created: @_lastRestoreResult.IncidentsRestored
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div><strong>Import Failed:</strong> @_lastRestoreResult.ErrorMessage</div>
+                                    }
+                                </MudAlert>
                             }
                         </MudStack>
-                    </MudAlert>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    </MudTabPanel>
 
-                    <MudText Typo="Typo.body2">
-                        WorkSphere supports both an <strong>in-process background scheduler</strong> and a <strong>headless CLI mode</strong> for automated backups. Backups are written to dedicated snapshot directories (<code>snapshot-YYYYMMDD-HHmmss</code>) containing full JSON backups, categorized CSV files, and monthly Markdown notes.
-                    </MudText>
-
-                    <MudGrid>
-                        <MudItem xs="12" md="6">
-                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">Configuration & Paths</MudText>
+    <!-- Tab 4: Automation & Scheduling -->
+    <MudTabPanel Text="Automation & Scheduling" Icon="@Icons.Material.Filled.Schedule" Class="pa-4">
+        <MudGrid Spacing="3">
+            <!-- Left Column: Scheduler & CLI -->
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="1" Class="h-100">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">In-Process Scheduler & Configuration</MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudChip T="string" Color="@(SchedulerState.IsEnabled ? Color.Success : Color.Default)" Size="Size.Small">
+                                @(SchedulerState.IsEnabled ? "Enabled" : "Disabled")
+                            </MudChip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudStack Spacing="3">
                             <MudSimpleTable Dense="true" Hover="true">
                                 <thead>
                                     <tr>
-                                        <th>Target</th>
+                                        <th>Setting</th>
                                         <th>Config Source</th>
                                         <th>Resolved Value</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr>
-                                        <td>Server Backup Path</td>
-                                        <td><code>appsettings.json</code> (<code>Export:OutputPath</code>) or <code>EXPORT_PATH</code></td>
+                                        <td>Scheduler Status</td>
+                                        <td><code>Export:ScheduledBackup:Enabled</code></td>
+                                        <td>@(SchedulerState.IsEnabled ? "Active" : "Disabled")</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Cron Schedule</td>
+                                        <td><code>Export:ScheduledBackup:CronSchedule</code></td>
+                                        <td><code>@SchedulerState.CronExpression</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Storage Directory</td>
+                                        <td><code>Export:OutputPath</code> or <code>EXPORT_PATH</code></td>
                                         <td><code>@_defaultExportDir</code></td>
                                     </tr>
                                     <tr>
@@ -243,21 +478,37 @@
                                         <td><code>Export:ScheduledBackup:MaxBackupHistory</code></td>
                                         <td>@(_maxBackupHistory.HasValue && _maxBackupHistory.Value > 0 ? $"Keep last {_maxBackupHistory.Value} snapshots" : "Unlimited (Never delete)")</td>
                                     </tr>
-                                    <tr>
-                                        <td>CLI Path Override</td>
-                                        <td>Command line argument</td>
-                                        <td><code>--output &lt;path&gt;</code> or <code>-o &lt;path&gt;</code></td>
-                                    </tr>
                                 </tbody>
                             </MudSimpleTable>
 
-                            <MudText Typo="Typo.subtitle2" Class="mt-3" Color="Color.Primary">CLI Execution Command</MudText>
-                            <pre class="pa-3 rounded mud-theme-dark" style="font-family: monospace; font-size: 0.85rem; overflow-x: auto; background-color: var(--mud-palette-background-grey);">dotnet WorkSphere.dll --backup</pre>
-                        </MudItem>
+                            <MudText Typo="Typo.subtitle2" Color="Color.Primary" Class="mt-2">Headless CLI Command</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                WorkSphere can be executed headlessly for Cron jobs or ad-hoc volume backups:
+                            </MudText>
+                            <pre class="pa-3 rounded" style="font-family: monospace; font-size: 0.85rem; overflow-x: auto; background-color: var(--mud-palette-background-grey);">dotnet WorkSphere.dll --backup</pre>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Override destination output directory:</MudText>
+                            <pre class="pa-2 rounded" style="font-family: monospace; font-size: 0.82rem; overflow-x: auto; background-color: var(--mud-palette-background-grey);">dotnet WorkSphere.dll --backup --output /mnt/backups</pre>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
 
-                        <MudItem xs="12" md="6">
-                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">Kubernetes CronJob Manifest Example</MudText>
-                            <pre class="pa-3 rounded mud-theme-dark" style="font-family: monospace; font-size: 0.8rem; overflow-x: auto; max-height: 240px; background-color: var(--mud-palette-background-grey);">apiVersion: batch/v1
+            <!-- Right Column: Kubernetes Manifest -->
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="1" Class="h-100">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Kubernetes CronJob Manifest</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                Example manifest for running nightly automated backups with persistent storage.
+                            </MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudIcon Icon="@Icons.Custom.Brands.GitHub" Color="Color.Default" />
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <pre class="pa-3 rounded" style="font-family: monospace; font-size: 0.78rem; overflow-x: auto; max-height: 380px; background-color: var(--mud-palette-background-grey);">apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: worksphere-nightly-backup
@@ -287,17 +538,21 @@ spec:
           - name: backup-storage
             persistentVolumeClaim:
               claimName: worksphere-backup-pvc</pre>
-                        </MudItem>
-                    </MudGrid>
-                </MudStack>
-            </MudExpansionPanel>
-        </MudExpansionPanels>
-    </MudItem>
-</MudGrid>
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        </MudGrid>
+    </MudTabPanel>
+</MudTabs>
 
 @code {
-    private bool _isImporting = false;
+    private bool _isRestoring = false;
     private bool _isExporting = false;
+
+    private List<ServerSnapshotInfo> _serverSnapshots = [];
+    private IBrowserFile? _uploadedFile;
+    private RestoreResult? _lastRestoreResult;
+    private string? _lastRestoreSource; // "Snapshot" or "File"
 
     private string _exportTarget = "WorkLogs";
     private string _exportFormat = "CSV";
@@ -320,6 +575,111 @@ spec:
         _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
         _defaultExportDir = ExportService.GetDefaultExportDirectory();
         _maxBackupHistory = Configuration.GetValue<int?>("Export:ScheduledBackup:MaxBackupHistory");
+        RefreshSnapshots();
+    }
+
+    private void RefreshSnapshots()
+    {
+        _serverSnapshots = RestoreService.GetAvailableServerSnapshots();
+    }
+
+    private async Task RestoreSnapshotWithConfirmationAsync(ServerSnapshotInfo snapshot)
+    {
+        bool? confirmed = await DialogService.ShowMessageBoxAsync(
+            "Confirm Snapshot Restore",
+            $"Are you sure you want to restore from snapshot '{snapshot.DirectoryName}'? Existing database records will not be deleted, and missing records will be restored.",
+            yesText: "Restore Snapshot",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            _isRestoring = true;
+            _lastRestoreResult = null;
+            _lastRestoreSource = "Snapshot";
+            try
+            {
+                var result = await RestoreService.RestoreFromSnapshotDirectoryAsync(snapshot.FullPath);
+                _lastRestoreResult = result;
+                if (result.Success)
+                {
+                    Snackbar.Add($"Restored snapshot: {result.WorkLogsRestored} logs restored ({result.WorkLogsSkipped} duplicates skipped).", Severity.Success);
+                    _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+                }
+                else
+                {
+                    Snackbar.Add($"Snapshot restore failed: {result.ErrorMessage}", Severity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _lastRestoreResult = RestoreResult.Failed(ex.Message);
+                Snackbar.Add($"Snapshot restore failed: {ex.Message}", Severity.Error);
+            }
+            finally
+            {
+                _isRestoring = false;
+            }
+        }
+    }
+
+    private void OnUploadFileSelected(IBrowserFile file)
+    {
+        _uploadedFile = file;
+        _lastRestoreResult = null;
+    }
+
+    private void ClearUploadedFile()
+    {
+        _uploadedFile = null;
+        _lastRestoreResult = null;
+    }
+
+    private async Task RestoreUploadedFileAsync()
+    {
+        if (_uploadedFile == null) return;
+        _isRestoring = true;
+        _lastRestoreResult = null;
+        _lastRestoreSource = "File";
+        try
+        {
+            using var stream = _uploadedFile.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            var content = await reader.ReadToEndAsync();
+
+            var ext = Path.GetExtension(_uploadedFile.Name).ToLowerInvariant();
+            if (ext == ".json")
+            {
+                _lastRestoreResult = await RestoreService.RestoreFromJsonAsync(content);
+            }
+            else if (ext == ".csv")
+            {
+                _lastRestoreResult = await RestoreService.ImportWorkLogsFromCsvAsync(content);
+            }
+            else
+            {
+                _lastRestoreResult = RestoreResult.Failed($"Unsupported file format '{ext}'. Please upload a .json or .csv file.");
+            }
+
+            if (_lastRestoreResult.Success)
+            {
+                Snackbar.Add($"Imported successfully: {_lastRestoreResult.WorkLogsRestored} logs restored ({_lastRestoreResult.WorkLogsSkipped} duplicates skipped).", Severity.Success);
+                _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+                RefreshSnapshots();
+            }
+            else
+            {
+                Snackbar.Add($"Import failed: {_lastRestoreResult.ErrorMessage}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            _lastRestoreResult = RestoreResult.Failed(ex.Message);
+            Snackbar.Add($"File restore failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isRestoring = false;
+        }
     }
 
     private void OnExportTargetChanged(string target)
@@ -379,24 +739,6 @@ spec:
                 _filterStartDate = null;
                 _filterEndDate = null;
                 break;
-        }
-    }
-
-    private async Task ImportMarkdown()
-    {
-        _isImporting = true;
-        try
-        {
-            await MigrationService.MigrateAsync();
-            Snackbar.Add("Import completed successfully.", Severity.Success);
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
-        }
-        finally
-        {
-            _isImporting = false;
         }
     }
 
@@ -494,6 +836,7 @@ spec:
 
             if (result.Success)
             {
+                RefreshSnapshots();
                 Snackbar.Add($"Server backup created: {result.FilesWritten} files written to {result.OutputDirectory}", Severity.Success);
             }
             else
@@ -512,5 +855,19 @@ spec:
         {
             _isExporting = false;
         }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] suffixes = ["B", "KB", "MB", "GB"];
+        int i = 0;
+        double dblBytes = bytes;
+        while (dblBytes >= 1024 && i < suffixes.Length - 1)
+        {
+            dblBytes /= 1024;
+            i++;
+        }
+        return $"{dblBytes:0.##} {suffixes[i]}";
     }
 }
