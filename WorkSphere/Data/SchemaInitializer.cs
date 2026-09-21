@@ -84,8 +84,16 @@ public static class SchemaInitializer
                             FOREIGN KEY (IncidentId) REFERENCES Incidents(Id) ON DELETE SET NULL;
                     END IF;
                 END $$;");
+
+            // 4. Create performance indexes
+            await connection.ExecuteAsync(@"
+                CREATE INDEX IF NOT EXISTS idx_worklogs_logdate ON WorkLogs (LogDate DESC, LogTime DESC);
+                CREATE INDEX IF NOT EXISTS idx_worklogs_employeeid ON WorkLogs (EmployeeId);
+                CREATE INDEX IF NOT EXISTS idx_worklogs_incidentid ON WorkLogs (IncidentId) WHERE IncidentId IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_worklogs_categories ON WorkLogs (MainCategory, SubCategory);
+                CREATE INDEX IF NOT EXISTS idx_incidents_startedat ON Incidents (StartedAt DESC);");
             
-            // 4. Check for local seed.sql and execute it
+            // 5. Check for local seed.sql and execute it
             string seedPath = "seed.sql";
             if (File.Exists(seedPath))
             {

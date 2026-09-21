@@ -4,7 +4,7 @@ using WorkSphere.Models;
 
 namespace WorkSphere.Services;
 
-public class WorkLogService
+public class WorkLogService : IWorkLogService
 {
     private readonly string _connectionString;
     private readonly ILogger<WorkLogService> _logger;
@@ -124,6 +124,41 @@ public class WorkLogService
             log.Employee = employee;
             return log;
         });
+    }
+
+    public virtual async Task<IEnumerable<WorkLog>> GetWorkLogsByDateRangeAsync(DateOnly startDate, DateOnly endDate)
+    {
+        const string sql = @"
+            SELECT l.*, e.* 
+            FROM WorkLogs l 
+            JOIN Employees e ON l.EmployeeId = e.Id 
+            WHERE l.LogDate >= @StartDate AND l.LogDate <= @EndDate
+            ORDER BY e.Name, l.LogDate, l.LogTime";
+        using var connection = CreateConnection();
+        return await connection.QueryAsync<WorkLog, Employee, WorkLog>(sql, (log, employee) =>
+        {
+            log.Employee = employee;
+            return log;
+        }, new { StartDate = startDate, EndDate = endDate });
+    }
+
+    public virtual async Task<IEnumerable<WorkLog>> GetWorkLogsByMonthAsync(int year, int month)
+    {
+        var startDate = new DateOnly(year, month, 1);
+        var endDate = startDate.AddMonths(1).AddDays(-1);
+        return await GetWorkLogsByDateRangeAsync(startDate, endDate);
+    }
+
+    public virtual async Task<int> GetWorkLogsCountByMonthAsync(int year, int month)
+    {
+        var startDate = new DateOnly(year, month, 1);
+        var endDate = startDate.AddMonths(1).AddDays(-1);
+        const string sql = @"
+            SELECT COUNT(*) 
+            FROM WorkLogs 
+            WHERE LogDate >= @StartDate AND LogDate <= @EndDate";
+        using var connection = CreateConnection();
+        return await connection.ExecuteScalarAsync<int>(sql, new { StartDate = startDate, EndDate = endDate });
     }
 
     public virtual async Task AddWorkLogAsync(WorkLog log)

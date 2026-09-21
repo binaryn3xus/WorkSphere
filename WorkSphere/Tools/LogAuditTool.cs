@@ -15,10 +15,10 @@ namespace WorkSphere.Tools;
 
 public class LogAuditTool
 {
-    private readonly WorkLogService _workLogService;
+    private readonly IWorkLogService _workLogService;
     private readonly string _logsPath;
 
-    public LogAuditTool(WorkLogService workLogService, IConfiguration configuration)
+    public LogAuditTool(IWorkLogService workLogService, IConfiguration configuration)
     {
         _workLogService = workLogService;
         _logsPath = configuration["Migration:LogsPath"] ?? "WorkSphere/Import";

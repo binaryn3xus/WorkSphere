@@ -3,7 +3,7 @@
 @using WorkSphere.Models
 @using WorkSphere.Services
 @using MudBlazor
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject NavigationManager NavigationManager
@@ -224,26 +224,7 @@
     </MudStack>
 </MudContainer>
 
-<style>
-    .incident-card {
-        transition: all 0.2s ease-in-out;
-        border-left: 4px solid transparent;
-    }
-    .incident-card:hover {
-        transform: translateX(4px);
-        background-color: var(--mud-palette-background-grey);
-        border-left: 4px solid var(--mud-palette-primary);
-    }
-    .truncate-text {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .font-weight-bold { font-weight: 700; }
-    .italic { font-style: italic; }
-</style>
+
 
 @code {
     private IEnumerable<IncidentViewModel> _incidents = new List<IncidentViewModel>();

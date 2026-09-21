@@ -1,0 +1,451 @@
+/* ==========================================================================
+   WorkSphere Application Styles
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   General Utilities
+   -------------------------------------------------------------------------- */
+.font-weight-bold {
+    font-weight: 700;
+}
+
+.italic {
+    font-style: italic;
+}
+
+.truncate-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --------------------------------------------------------------------------
+   Home Page Styles
+   -------------------------------------------------------------------------- */
+.home-weekly-card {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
+}
+
+.home-weekly-card__details {
+    border-radius: 10px;
+    background-color: var(--mud-palette-background-grey);
+}
+
+/* --------------------------------------------------------------------------
+   Employees Page Styles
+   -------------------------------------------------------------------------- */
+.employees-toolbar {
+    gap: 12px;
+}
+
+.employees-toolbar__name {
+    min-width: min(100%, 320px);
+    flex: 1 1 260px;
+}
+
+.employees-toolbar__initials {
+    width: 110px;
+}
+
+.employee-mobile-card {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
+    border-left: 4px solid var(--mud-palette-primary);
+}
+
+.employee-mobile-card__meta {
+    border-radius: 10px;
+    background-color: var(--mud-palette-background-grey);
+}
+
+/* --------------------------------------------------------------------------
+   Incidents Page Styles
+   -------------------------------------------------------------------------- */
+.incident-card {
+    transition: all 0.2s ease-in-out;
+    border-left: 4px solid transparent;
+}
+
+.incident-card:hover {
+    transform: translateX(4px);
+    background-color: var(--mud-palette-background-grey);
+    border-left: 4px solid var(--mud-palette-primary);
+}
+
+/* --------------------------------------------------------------------------
+   Schedule Page Styles
+   -------------------------------------------------------------------------- */
+.schedule-mobile-tab-picker {
+    display: none;
+    border: 1px solid rgba(var(--mud-palette-primary-rgb), 0.16);
+    background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.08) 0%, rgba(var(--mud-palette-surface-rgb), 0.98) 100%);
+}
+
+.schedule-mobile-tab-picker__header {
+    margin-bottom: 0.5rem;
+}
+
+.schedule-mobile-tab-picker__select {
+    width: 100%;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    background-color: var(--mud-palette-divider);
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.calendar-surface {
+    position: relative;
+}
+
+.schedule-calendar-toolbar,
+.schedule-list-toolbar,
+.schedule-audit-toolbar {
+    gap: 1rem;
+}
+
+.schedule-audit-select {
+    flex: 0 1 180px;
+}
+
+.schedule-audit-select--year {
+    flex-basis: 120px;
+}
+
+.schedule-audit-select--month {
+    flex-basis: 150px;
+}
+
+.schedule-audit-filter {
+    flex-basis: 180px;
+}
+
+.schedule-audit-refresh {
+    flex-shrink: 0;
+}
+
+.schedule-calendar-navigation {
+    gap: 0.25rem;
+}
+
+.schedule-calendar-month-label {
+    min-width: 200px;
+    margin: 0 1rem;
+    text-align: center;
+}
+
+.schedule-calendar-actions {
+    flex-shrink: 0;
+}
+
+.mobile-calendar-agenda {
+    width: 100%;
+}
+
+.mobile-calendar-day-card {
+    padding: 1rem;
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 12px;
+    background-color: var(--mud-palette-surface);
+}
+
+.mobile-calendar-day-card.today {
+    border-color: var(--mud-palette-primary);
+    box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
+}
+
+.mobile-calendar-day-actions {
+    gap: 0.5rem;
+}
+
+.mobile-calendar-empty {
+    display: block;
+    padding: 0.5rem 0;
+}
+
+.mobile-log-card {
+    padding: 0.85rem;
+    border: 1px solid var(--mud-palette-divider);
+    border-left-width: 4px !important;
+    border-radius: 10px;
+    background-color: var(--mud-palette-background-grey);
+}
+
+.mobile-log-primary {
+    min-width: 0;
+}
+
+.mobile-log-details {
+    white-space: normal;
+    line-height: 1.45;
+}
+
+.mobile-log-actions .mud-icon-button {
+    width: 44px;
+    height: 44px;
+}
+
+.calendar-header {
+    background-color: var(--mud-palette-background-grey);
+    padding: 12px;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+}
+
+.calendar-day {
+    background-color: var(--mud-palette-surface);
+    min-height: 140px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    transition: background-color 0.2s;
+}
+
+.calendar-day:hover {
+    background-color: var(--mud-palette-background-grey);
+    cursor: pointer;
+}
+
+.calendar-day.empty {
+    background-color: var(--mud-palette-background-grey);
+    opacity: 0.5;
+}
+
+.calendar-day.today {
+    border: 2px solid var(--mud-palette-primary);
+    z-index: 1;
+}
+
+.day-number {
+    font-weight: 900;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    opacity: 0.7;
+}
+
+.calendar-day.today .day-number {
+    color: var(--mud-palette-primary);
+    opacity: 1;
+}
+
+.day-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.log-namecard {
+    font-size: 0.75rem;
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: var(--mud-palette-text-primary);
+    background-color: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-left-width: 4px !important;
+}
+
+.log-namecard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background-color: var(--mud-palette-background-grey);
+}
+
+.card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--mud-palette-divider);
+    padding-bottom: 4px;
+    margin-bottom: 2px;
+}
+
+.emp-name {
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.log-time {
+    font-size: 0.6rem;
+    opacity: 0.7;
+    font-family: monospace;
+}
+
+.card-bottom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.9;
+}
+
+.cat-label {
+    font-size: 0.65rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cat-icon {
+    font-size: 0.8rem !important;
+}
+
+.details-icon {
+    font-size: 0.8rem !important;
+    margin-left: auto;
+    opacity: 0.6;
+}
+
+.calendar-context-menu {
+    position: fixed;
+    z-index: 1400;
+    min-width: 180px;
+    padding: 0.35rem;
+    background-color: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    pointer-events: none;
+}
+
+.calendar-context-menu__item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font: inherit;
+    pointer-events: auto;
+}
+
+.calendar-context-menu__item:hover {
+    background-color: var(--mud-palette-action-default-hover);
+}
+
+.calendar-context-menu__item--danger {
+    color: var(--mud-palette-error);
+}
+
+.calendar-context-menu__item--danger:hover {
+    background-color: rgba(var(--mud-palette-error-rgb), 0.12);
+}
+
+@media (max-width: 599.95px) {
+    .schedule-calendar-toolbar,
+    .schedule-list-toolbar,
+    .schedule-audit-toolbar {
+        align-items: stretch;
+    }
+
+    .schedule-calendar-navigation {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .schedule-calendar-month-label {
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+    }
+
+    .schedule-calendar-actions {
+        width: 100%;
+    }
+
+    .schedule-calendar-actions .mud-button-root,
+    .schedule-calendar-actions .mud-menu-button {
+        flex: 1 1 auto;
+    }
+
+    .mobile-calendar-day-actions {
+        width: 100%;
+    }
+
+    .mobile-calendar-day-actions .mud-button-root {
+        flex: 1 1 auto;
+    }
+
+    .schedule-audit-select,
+    .schedule-audit-refresh {
+        width: 100%;
+        max-width: none !important;
+        flex: 1 1 100%;
+    }
+
+    .schedule-audit-refresh {
+        justify-content: center;
+    }
+}
+
+/* Sub-Category Accent Borders using Theme Variables */
+.cat-office { border-left-color: var(--mud-palette-info) !important; }
+.cat-wfh { border-left-color: var(--mud-palette-tertiary) !important; }
+.cat-remote { border-left-color: var(--mud-palette-secondary) !important; }
+.cat-pto { border-left-color: var(--mud-palette-success) !important; }
+.cat-sick { border-left-color: var(--mud-palette-error) !important; }
+.cat-fmla { border-left-color: var(--mud-palette-error-darken) !important; }
+.cat-holiday { border-left-color: var(--mud-palette-warning) !important; }
+.cat-other { border-left-color: var(--mud-palette-grey-darken) !important; }
+
+.schedule-toolbar {
+    gap: 12px;
+}
+
+.schedule-toolbar__search {
+    width: min(100%, 320px);
+}
+
+.schedule-table-shell {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.mobile-feed-card {
+    border: 1px solid var(--mud-palette-divider);
+    border-radius: 14px;
+    border-left: 4px solid var(--mud-palette-divider);
+    background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
+}
+
+.mobile-feed-card__details {
+    border-radius: 10px;
+    background-color: var(--mud-palette-background-grey);
+}
+
+.mobile-audit-card__panel {
+    border: 1px solid rgba(var(--mud-palette-text-primary-rgb), 0.06);
+}
+
+@media (max-width: 599.98px) {
+    .schedule-mobile-tab-picker {
+        display: block;
+    }
+
+    .schedule-tabs .mud-tabs-tabbar {
+        display: none;
+    }
+
+    .schedule-tabs .mud-tabs-panels {
+        padding-top: 0.25rem;
+    }
+}

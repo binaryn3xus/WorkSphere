@@ -1,7 +1,7 @@
 @using WorkSphere.Models
 @using WorkSphere.Services
 @using MudBlazor
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
@@ -191,6 +191,12 @@
                 var localDateTime = DateTime.UtcNow.AddMinutes(-offsetMinutes);
                 _log.LogDate = DateOnly.FromDateTime(localDateTime);
                 _log.LogTime = new TimeOnly(localDateTime.Hour, localDateTime.Minute);
+
+                var savedEmpIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "worksphere:preferredEmployeeId");
+                if (int.TryParse(savedEmpIdStr, out var savedEmpId) && _employees.Any(e => e.Id == savedEmpId))
+                {
+                    _log.EmployeeId = savedEmpId;
+                }
                 StateHasChanged();
             }
             catch
@@ -250,8 +256,19 @@
         set => _log.LogTime = value.HasValue ? TimeOnly.FromTimeSpan(value.Value) : null;
     }
 
-    private void Submit() 
+    private async Task Submit() 
     {
+        if (_log.EmployeeId > 0)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "worksphere:preferredEmployeeId", _log.EmployeeId.ToString());
+            }
+            catch
+            {
+                // Ignore storage error
+            }
+        }
         MudDialog.Close(DialogResult.Ok(_log));
     }
 

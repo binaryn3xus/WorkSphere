@@ -1,19 +1,46 @@
 @page "/reports"
 @using WorkSphere.Services
 @using WorkSphere.Models
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 
-<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-6">
-    <MudText Typo="Typo.h4">Analytics Dashboard</MudText>
-    <MudPaper Elevation="0" Class="pa-2" Style="width: 300px;">
-        <MudSelect T="int?" Label="Filter by Employee" Value="@_selectedEmployeeId" ValueChanged="OnEmployeeFilterChanged" Clearable="true" Placeholder="All Employees" Variant="Variant.Outlined" Dense="true">
+<MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="mb-6" Spacing="3">
+    <div>
+        <MudText Typo="Typo.h4">Analytics Dashboard</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">@GetActiveFilterSummary()</MudText>
+    </div>
+    
+    <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2">
+        <MudSelect T="string" Label="Date Range" Value="@_selectedRangePreset" ValueChanged="OnRangePresetChanged" Variant="Variant.Outlined" Dense="true" Style="min-width: 160px;">
+            <MudSelectItem Value="@("All Time")">All Time</MudSelectItem>
+            <MudSelectItem Value="@("This Month")">This Month</MudSelectItem>
+            <MudSelectItem Value="@("Last Month")">Last Month</MudSelectItem>
+            <MudSelectItem Value="@("Last 30 Days")">Last 30 Days</MudSelectItem>
+            <MudSelectItem Value="@("Last 3 Months")">Last 3 Months</MudSelectItem>
+            <MudSelectItem Value="@("Last 6 Months")">Last 6 Months</MudSelectItem>
+            <MudSelectItem Value="@("This Year")">This Year</MudSelectItem>
+            <MudSelectItem Value="@("Custom Range")">Custom Range</MudSelectItem>
+        </MudSelect>
+
+        @if (_selectedRangePreset == "Custom Range")
+        {
+            <MudDateRangePicker Label="Custom Range" DateRange="@_customDateRange" DateRangeChanged="OnCustomDateRangeChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width: 240px;" AutoClose="true" />
+        }
+
+        <MudSelect T="int?" Label="Filter by Employee" Value="@_selectedEmployeeId" ValueChanged="OnEmployeeFilterChanged" Clearable="true" Placeholder="All Employees" Variant="Variant.Outlined" Dense="true" Style="min-width: 180px;">
             <MudSelectItem T="int?" Value="null">All Employees</MudSelectItem>
             @foreach (var emp in _employees)
             {
                 <MudSelectItem T="int?" Value="@emp.Id">@emp.Name</MudSelectItem>
             }
         </MudSelect>
-    </MudPaper>
+
+        @if (_selectedEmployeeId.HasValue || _selectedRangePreset != "All Time")
+        {
+            <MudTooltip Text="Reset Filters">
+                <MudIconButton Icon="@Icons.Material.Filled.FilterAltOff" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small" OnClick="ResetFilters" />
+            </MudTooltip>
+        }
+    </MudStack>
 </MudStack>
 
 <MudGrid>
@@ -137,8 +164,11 @@
         <MudCard Elevation="3">
             <MudCardHeader>
                 <CardHeaderContent>
-                    <MudText Typo="Typo.h6">Team Attendance Matrix (Last 30 Days)</MudText>
+                    <MudText Typo="Typo.h6">Team Attendance Matrix</MudText>
                 </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudSwitch T="bool" Value="@_hideFutureDates" ValueChanged="OnHideFutureDatesChanged" Color="Color.Primary" Label="Hide Future Dates" Class="mr-2" />
+                </CardHeaderActions>
             </MudCardHeader>
             <MudCardContent Class="pa-0">
                 @* Desktop View: Table *@
@@ -175,35 +205,42 @@
 
                 @* Mobile View: Timeline/Feed *@
                 <div class="d-block d-sm-none pa-4">
-                    <MudStack Spacing="3">
-                        @foreach (var row in _matrixRows)
-                        {
-                            <MudPaper Elevation="0" Class="pa-3" Style="border: 1px solid var(--mud-palette-divider); border-radius: 8px;">
-                                <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">@row.Date.ToString("MMMM dd (ddd)")</MudText>
-                                <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
-                                    @foreach (var empName in _allEmployeeNames)
-                                    {
-                                        var status = row.EmployeeStatus.ContainsKey(empName) ? row.EmployeeStatus[empName] : null;
-                                        @if (status != null)
+                    @if (_matrixRows.Any())
+                    {
+                        <MudStack Spacing="3">
+                            @foreach (var row in _matrixRows)
+                            {
+                                <MudPaper Elevation="0" Class="pa-3" Style="border: 1px solid var(--mud-palette-divider); border-radius: 8px;">
+                                    <MudText Typo="Typo.subtitle2" Class="font-weight-bold mb-2">@row.Date.ToString("MMMM dd (ddd)")</MudText>
+                                    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1">
+                                        @foreach (var empName in _allEmployeeNames)
                                         {
-                                            <MudChip T="string" 
-                                                    Variant="Variant.Outlined" 
-                                                    Size="Size.Small" 
-                                                    Color="@GetStatusColor(status)" 
-                                                    Icon="@GetStatusIcon(status.SubCategory)"
-                                                    Label="true">
-                                                @empName: @status.SubCategory
-                                            </MudChip>
+                                            var status = row.EmployeeStatus.ContainsKey(empName) ? row.EmployeeStatus[empName] : null;
+                                            @if (status != null)
+                                            {
+                                                <MudChip T="string" 
+                                                        Variant="Variant.Outlined" 
+                                                        Size="Size.Small" 
+                                                        Color="@GetStatusColor(status)" 
+                                                        Icon="@GetStatusIcon(status.SubCategory)"
+                                                        Label="true">
+                                                    @empName: @status.SubCategory
+                                                </MudChip>
+                                            }
                                         }
-                                    }
-                                    @if (!row.EmployeeStatus.Any())
-                                    {
-                                        <MudText Typo="Typo.caption" Class="mud-text-secondary italic">No activity recorded</MudText>
-                                    }
-                                </MudStack>
-                            </MudPaper>
-                        }
-                    </MudStack>
+                                        @if (!row.EmployeeStatus.Any())
+                                        {
+                                            <MudText Typo="Typo.caption" Class="mud-text-secondary italic">No activity recorded</MudText>
+                                        }
+                                    </MudStack>
+                                </MudPaper>
+                            }
+                        </MudStack>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Text">No attendance records found for this period.</MudAlert>
+                    }
                 </div>
             </MudCardContent>
         </MudCard>
@@ -234,6 +271,12 @@
     private int? _selectedEmployeeId;
     private List<WorkLog> _allLogs = new();
 
+    private string _selectedRangePreset = "All Time";
+    private DateRange? _customDateRange;
+    private DateOnly? _filterStartDate;
+    private DateOnly? _filterEndDate;
+    private bool _hideFutureDates = true;
+
     protected override async Task OnInitializedAsync()
     {
         _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
@@ -247,31 +290,139 @@
         await CalculateStats();
     }
 
-    private async Task CalculateStats()
+    private async Task OnHideFutureDatesChanged(bool value)
     {
-        var filteredLogs = _selectedEmployeeId.HasValue 
-            ? _allLogs.Where(l => l.EmployeeId == _selectedEmployeeId.Value).ToList() 
-            : _allLogs;
+        _hideFutureDates = value;
+        await CalculateStats();
+    }
 
-        // 1. Main Categories
-        var mainGroups = await WorkLogService.GetMainCategoryStatsAsync();
+    private async Task OnRangePresetChanged(string preset)
+    {
+        _selectedRangePreset = preset;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        switch (preset)
+        {
+            case "This Month":
+                _filterStartDate = new DateOnly(today.Year, today.Month, 1);
+                _filterEndDate = _filterStartDate.Value.AddMonths(1).AddDays(-1);
+                break;
+            case "Last Month":
+                var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
+                _filterStartDate = firstOfThisMonth.AddMonths(-1);
+                _filterEndDate = firstOfThisMonth.AddDays(-1);
+                break;
+            case "Last 30 Days":
+                _filterStartDate = today.AddDays(-30);
+                _filterEndDate = today;
+                break;
+            case "Last 3 Months":
+                _filterStartDate = today.AddMonths(-3);
+                _filterEndDate = today;
+                break;
+            case "Last 6 Months":
+                _filterStartDate = today.AddMonths(-6);
+                _filterEndDate = today;
+                break;
+            case "This Year":
+                _filterStartDate = new DateOnly(today.Year, 1, 1);
+                _filterEndDate = new DateOnly(today.Year, 12, 31);
+                break;
+            case "Custom Range":
+                if (_customDateRange?.Start.HasValue == true && _customDateRange?.End.HasValue == true)
+                {
+                    _filterStartDate = DateOnly.FromDateTime(_customDateRange.Start.Value);
+                    _filterEndDate = DateOnly.FromDateTime(_customDateRange.End.Value);
+                }
+                break;
+            case "All Time":
+            default:
+                _filterStartDate = null;
+                _filterEndDate = null;
+                break;
+        }
+
+        await CalculateStats();
+    }
+
+    private async Task OnCustomDateRangeChanged(DateRange? range)
+    {
+        _customDateRange = range;
+        if (range?.Start.HasValue == true && range?.End.HasValue == true)
+        {
+            _filterStartDate = DateOnly.FromDateTime(range.Start.Value);
+            _filterEndDate = DateOnly.FromDateTime(range.End.Value);
+            await CalculateStats();
+        }
+    }
+
+    private async Task ResetFilters()
+    {
+        _selectedEmployeeId = null;
+        _selectedRangePreset = "All Time";
+        _customDateRange = null;
+        _filterStartDate = null;
+        _filterEndDate = null;
+        await CalculateStats();
+    }
+
+    private string GetActiveFilterSummary()
+    {
+        var parts = new List<string>();
         if (_selectedEmployeeId.HasValue)
         {
-             mainGroups = filteredLogs.GroupBy(l => l.MainCategory)
-                .Select(g => new CategoryStatDto(g.Key ?? "Unknown", g.Count()))
-                .ToList();
+            var empName = _employees.FirstOrDefault(e => e.Id == _selectedEmployeeId.Value)?.Name ?? "Selected Employee";
+            parts.Add($"Employee: {empName}");
         }
+        if (_filterStartDate.HasValue || _filterEndDate.HasValue)
+        {
+            var start = _filterStartDate?.ToString("MM/dd/yyyy") ?? "Beginning";
+            var end = _filterEndDate?.ToString("MM/dd/yyyy") ?? "Present";
+            parts.Add($"Period: {start} – {end}");
+        }
+        else
+        {
+            parts.Add("Period: All Time");
+        }
+        return string.Join(" | ", parts);
+    }
+
+    private async Task CalculateStats()
+    {
+        var query = _allLogs.AsEnumerable();
+
+        if (_selectedEmployeeId.HasValue)
+        {
+            query = query.Where(l => l.EmployeeId == _selectedEmployeeId.Value);
+        }
+
+        if (_filterStartDate.HasValue)
+        {
+            query = query.Where(l => l.LogDate >= _filterStartDate.Value);
+        }
+
+        if (_filterEndDate.HasValue)
+        {
+            query = query.Where(l => l.LogDate <= _filterEndDate.Value);
+        }
+
+        var filteredLogs = query.ToList();
+
+        // 1. Main Categories
+        var mainGroups = filteredLogs.GroupBy(l => l.MainCategory ?? "Unknown")
+            .Select(g => new CategoryStatDto(g.Key, g.Count()))
+            .OrderByDescending(g => g.Count)
+            .ToList();
+
         _mainCategoryData = mainGroups.Select(s => (double)s.Count).ToArray();
         _mainCategoryLabels = mainGroups.Select(s => s.Name).ToArray();
 
         // 2. Sub Categories
-        var subGroups = await WorkLogService.GetSubCategoryStatsAsync();
-        if (_selectedEmployeeId.HasValue)
-        {
-            subGroups = filteredLogs.GroupBy(l => l.SubCategory)
-                .Select(g => new CategoryStatDto(g.Key ?? "Unknown", g.Count()))
-                .ToList();
-        }
+        var subGroups = filteredLogs.GroupBy(l => l.SubCategory ?? "Unknown")
+            .Select(g => new CategoryStatDto(g.Key, g.Count()))
+            .OrderByDescending(g => g.Count)
+            .ToList();
+
         _subCategoryData = subGroups.Select(s => (double)s.Count).ToArray();
         _subCategoryLabels = subGroups.Select(s => s.Name).ToArray();
         
@@ -281,41 +432,55 @@
         };
 
         // 3. Employee Stats
-        var empGroups = await WorkLogService.GetEmployeeStatsAsync();
+        var empGroups = filteredLogs.GroupBy(l => l.Employee?.Name ?? "Unknown")
+            .Select(g => new EmployeeStatDto(g.Key, g.Count()))
+            .OrderByDescending(g => g.Count)
+            .ToList();
+
         _employeeData = empGroups.Select(s => (double)s.Count).ToArray();
         _employeeLabels = empGroups.Select(s => s.Name).ToArray();
         
-        if (!_selectedEmployeeId.HasValue)
-        {
-            _allEmployeeNames = _employees.Select(e => e.Name).ToList();
-        }
-        else
-        {
-            _allEmployeeNames = _employees.Where(e => e.Id == _selectedEmployeeId).Select(e => e.Name).ToList();
-        }
+        _allEmployeeNames = _selectedEmployeeId.HasValue
+            ? _employees.Where(e => e.Id == _selectedEmployeeId.Value).Select(e => e.Name).ToList()
+            : _employees.Select(e => e.Name).ToList();
 
         // 4. Comp Time Stats
-        var allCompStats = await WorkLogService.GetCompTimeStatsAsync();
-        _compTimeStats = allCompStats.Select(s => new CompTimeStat 
-        { 
-            Name = s.Name, 
-            Earned = s.Earned, 
-            Used = s.Used, 
-            Balance = s.Balance,
-            Id = s.Id
-        }).ToList();
+        var targetEmployees = _selectedEmployeeId.HasValue
+            ? _employees.Where(e => e.Id == _selectedEmployeeId.Value).ToList()
+            : _employees;
 
-        if (_selectedEmployeeId.HasValue)
+        _compTimeStats = targetEmployees.Select(e =>
         {
-            _compTimeStats = _compTimeStats.Where(s => s.Id == _selectedEmployeeId.Value).ToList();
-        }
+            var empLogs = filteredLogs.Where(l => l.EmployeeId == e.Id);
+            var earned = empLogs.Where(l => l.EarnsCompTime).Sum(l => l.Hours);
+            var used = empLogs.Where(l => l.UsesCompTime).Sum(l => l.Hours);
+            return new CompTimeStat
+            {
+                Id = e.Id,
+                Name = e.Name,
+                Earned = earned,
+                Used = used,
+                Balance = earned - used
+            };
+        }).OrderByDescending(s => s.Balance).ToList();
 
         _totalCompBalance = _compTimeStats.Sum(s => s.Balance);
 
         // 5. Matrix Pivot
-        var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
-        _matrixRows = filteredLogs
-            .Where(l => l.LogDate >= cutoff)
+        var matrixLogs = filteredLogs;
+        if (_hideFutureDates)
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            matrixLogs = matrixLogs.Where(l => l.LogDate <= today).ToList();
+        }
+
+        if (!_filterStartDate.HasValue && !_filterEndDate.HasValue)
+        {
+            var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+            matrixLogs = matrixLogs.Where(l => l.LogDate >= cutoff).ToList();
+        }
+
+        _matrixRows = matrixLogs
             .GroupBy(l => l.LogDate)
             .OrderByDescending(g => g.Key)
             .Select(g => new MatrixRow 
@@ -327,7 +492,7 @@
             .ToList();
 
         _totalLogs = filteredLogs.Count;
-        _totalEmployees = _selectedEmployeeId.HasValue ? 1 : _employees.Count;
+        _totalEmployees = _selectedEmployeeId.HasValue ? 1 : filteredLogs.Select(l => l.EmployeeId).Distinct().Count();
         
         if (filteredLogs.Any())
         {
@@ -337,6 +502,8 @@
         {
             _lastUpdateDate = "No activity";
         }
+
+        await Task.CompletedTask;
     }
 
     private string GetStatusIcon(string subCat) => subCat switch

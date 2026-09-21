@@ -1,7 +1,7 @@
 @page "/employees"
 @using WorkSphere.Models
 @using WorkSphere.Services
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -80,32 +80,7 @@
     }
 </div>
 
-<style>
-    .employees-toolbar {
-        gap: 12px;
-    }
 
-    .employees-toolbar__name {
-        min-width: min(100%, 320px);
-        flex: 1 1 260px;
-    }
-
-    .employees-toolbar__initials {
-        width: 110px;
-    }
-
-    .employee-mobile-card {
-        border: 1px solid var(--mud-palette-divider);
-        border-radius: 14px;
-        background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
-        border-left: 4px solid var(--mud-palette-primary);
-    }
-
-    .employee-mobile-card__meta {
-        border-radius: 10px;
-        background-color: var(--mud-palette-background-grey);
-    }
-</style>
 
 @code {
     private List<Employee> _employees = new();

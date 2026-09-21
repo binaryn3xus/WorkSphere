@@ -35,6 +35,13 @@ CREATE TABLE IF NOT EXISTS WorkLogs (
     Hours DECIMAL(5,2) DEFAULT 0
 );
 
--- 4. Grant Permissions (Modify 'worksphere_admin' to match your actual database user)
+-- 4. Create Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_worklogs_logdate ON WorkLogs (LogDate DESC, LogTime DESC);
+CREATE INDEX IF NOT EXISTS idx_worklogs_employeeid ON WorkLogs (EmployeeId);
+CREATE INDEX IF NOT EXISTS idx_worklogs_incidentid ON WorkLogs (IncidentId) WHERE IncidentId IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_worklogs_categories ON WorkLogs (MainCategory, SubCategory);
+CREATE INDEX IF NOT EXISTS idx_incidents_startedat ON Incidents (StartedAt DESC);
+
+-- 5. Grant Permissions (Modify 'worksphere_admin' to match your actual database user)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO worksphere_admin;
 -- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO worksphere_admin;

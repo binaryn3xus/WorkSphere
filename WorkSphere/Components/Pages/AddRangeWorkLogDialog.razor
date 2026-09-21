@@ -1,7 +1,7 @@
 @using WorkSphere.Models
 @using WorkSphere.Services
 @using MudBlazor
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 
@@ -151,6 +151,13 @@
                 var clientToday = DateOnly.FromDateTime(localDateTime);
                 _request.StartDate = clientToday;
                 _request.EndDate = clientToday;
+
+                var savedEmpIdStr = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "worksphere:preferredEmployeeId");
+                if (int.TryParse(savedEmpIdStr, out var savedEmpId) && _employees.Any(e => e.Id == savedEmpId))
+                {
+                    _request.EmployeeId = savedEmpId;
+                }
+
                 StateHasChanged();
             }
             catch
@@ -202,7 +209,7 @@
         set => _request.LogTime = value.HasValue ? TimeOnly.FromTimeSpan(value.Value) : null;
     }
 
-    private void Submit() 
+    private async Task Submit() 
     {
         if (_request.EmployeeId == 0)
         {
@@ -214,6 +221,15 @@
         {
             Snackbar.Add("Start date must be on or before end date.", Severity.Warning);
             return;
+        }
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "worksphere:preferredEmployeeId", _request.EmployeeId.ToString());
+        }
+        catch
+        {
+            // Ignore storage error
         }
 
         MudDialog.Close(DialogResult.Ok(_request));

@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
 
 <MudThemeProvider Theme="@_theme" IsDarkMode="@_isDarkMode" />
 <MudPopoverProvider />
@@ -43,14 +44,42 @@
         };
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var storedMode = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "worksphere:darkMode");
+                if (bool.TryParse(storedMode, out var isDark))
+                {
+                    _isDarkMode = isDark;
+                    StateHasChanged();
+                }
+            }
+            catch
+            {
+                // Fallback to default
+            }
+        }
+    }
+
     private void DrawerToggle()
     {
         _drawerOpen = !_drawerOpen;
     }
 
-    private void DarkModeToggle()
+    private async Task DarkModeToggle()
     {
         _isDarkMode = !_isDarkMode;
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "worksphere:darkMode", _isDarkMode.ToString().ToLowerInvariant());
+        }
+        catch
+        {
+            // Ignore storage error
+        }
     }
 
     private readonly PaletteLight _lightPalette = new()

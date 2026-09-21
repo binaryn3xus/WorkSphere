@@ -30,6 +30,7 @@ try
         .AddInteractiveServerComponents();
 
     builder.Services.AddScoped<WorkLogService>();
+    builder.Services.AddScoped<IWorkLogService>(sp => sp.GetRequiredService<WorkLogService>());
     builder.Services.AddScoped<MigrationService>();
     builder.Services.AddScoped<WorkSphere.Tools.LogAuditTool>();
 

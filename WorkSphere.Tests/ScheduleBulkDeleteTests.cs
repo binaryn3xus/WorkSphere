@@ -687,7 +687,8 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             Services.AddMudServices();
             Services.AddSingleton<IConfiguration>(configuration);
             Services.AddSingleton(environmentMock.Object);
-            Services.AddSingleton(WorkLogServiceMock.Object);
+            Services.AddSingleton<WorkLogService>(WorkLogServiceMock.Object);
+            Services.AddSingleton<IWorkLogService>(WorkLogServiceMock.Object);
             Services.AddSingleton(migrationService);
             Services.AddSingleton(_dialogServiceMock.Object);
             Services.AddSingleton(_snackbarMock.Object);

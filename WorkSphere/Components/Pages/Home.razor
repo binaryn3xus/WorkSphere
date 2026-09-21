@@ -1,7 +1,7 @@
 @page "/"
 @using WorkSphere.Models
 @using WorkSphere.Services
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -156,18 +156,7 @@
     </MudItem>
 </MudGrid>
 
-<style>
-    .home-weekly-card {
-        border: 1px solid var(--mud-palette-divider);
-        border-radius: 14px;
-        background: linear-gradient(180deg, rgba(var(--mud-palette-primary-rgb), 0.04) 0%, var(--mud-palette-surface) 100%);
-    }
 
-    .home-weekly-card__details {
-        border-radius: 10px;
-        background-color: var(--mud-palette-background-grey);
-    }
-</style>
 
 @code {
     private List<WorkLog> _todaysLogs = new();
@@ -188,10 +177,9 @@
         var employees = await WorkLogService.GetEmployeesAsync();
         _totalEmployees = employees.Count();
 
-        // Count logs for current month
-        var allLogs = await WorkLogService.GetWorkLogsAsync();
+        // Count logs for current month directly via indexed query
         var today = DateOnly.FromDateTime(DateTime.Today);
-        _monthLogsCount = allLogs.Count(l => l.LogDate?.Month == today.Month && l.LogDate?.Year == today.Year);
+        _monthLogsCount = await WorkLogService.GetWorkLogsCountByMonthAsync(today.Year, today.Month);
     }
 
     private async Task OpenAddDialog()

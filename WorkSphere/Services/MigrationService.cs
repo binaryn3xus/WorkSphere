@@ -6,10 +6,10 @@ namespace WorkSphere.Services;
 
 public class MigrationService
 {
-    private readonly WorkLogService _workLogService;
+    private readonly IWorkLogService _workLogService;
     private readonly string _logsPath;
 
-    public MigrationService(WorkLogService workLogService, IConfiguration configuration)
+    public MigrationService(IWorkLogService workLogService, IConfiguration configuration)
     {
         _workLogService = workLogService;
         _logsPath = configuration["Migration:LogsPath"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Import");

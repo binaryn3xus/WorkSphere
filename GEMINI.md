@@ -21,7 +21,8 @@ WorkSphere is a comprehensive work logging and employee management system built 
 - **Features:**
   - **Incident Tracking:** Track incidents with ticket numbers and link them to work logs.
   - **Comp Time Tracker:** Automatically calculate comp time earned based on logs marked as "Comp Time".
-  - **Analytics Dashboard:** Visual representation of log distribution, employee activity, and comp time stats.
+  - **Analytics Dashboard:** Visual representation of log distribution, employee activity, comp time stats, and customizable date range presets with employee filtering.
+  - **Client Preferences:** LocalStorage persistence for selected theme (Dark/Light mode) and preferred employee auto-selection on quick logging.
 
 ---
 
@@ -67,15 +68,16 @@ docker run -p 8080:8080 worksphere
 ### UI/Frontend
 - Utilize **MudBlazor** components for all UI elements to maintain visual consistency.
 - Define common layouts and imports in `_Imports.razor` and the `Layout` folder.
+- Shared CSS and JavaScript utilities are maintained in `wwwroot/app.css` and `wwwroot/app.js`. Scoped CSS files (`*.razor.css`) or `app.css` should be used instead of inline `<style>` tags.
 
 ### Data Access
-- All database interactions should go through `WorkLogService`.
+- All database interactions should go through `IWorkLogService` / `WorkLogService`.
 - Use Dapper for SQL queries. Avoid complex EF Core mapping unless explicitly required.
 - Ensure `DapperTypeHandlers.Register()` is called at startup (currently in `Program.cs`).
 
 ### Testing
-- **Status:** No automated tests are currently present in the solution.
-- **Guideline:** When adding features, prioritize creating a separate test project (e.g., `WorkSphere.Tests`) using xUnit or NUnit.
+- **Status:** Automated test suite is located in `WorkSphere.Tests` using **xUnit**, **bUnit**, and **Moq**.
+- **Guideline:** When adding features or refactoring UI components and services, write corresponding unit and bUnit tests in `WorkSphere.Tests`. Run tests with `dotnet test`.
 
 ### Database Migrations
 - The project uses a custom `SchemaInitializer` for basic schema setup.

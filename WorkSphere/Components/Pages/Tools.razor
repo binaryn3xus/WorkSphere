@@ -3,7 +3,7 @@
 @using System.Text
 @using WorkSphere.Models
 @inject MigrationService MigrationService
-@inject WorkLogService WorkLogService
+@inject IWorkLogService WorkLogService
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 
@@ -106,12 +106,7 @@
 
     private async Task ExportMarkdown()
     {
-        var allLogs = await WorkLogService.GetWorkLogsAsync();
-        var monthLogs = allLogs.Where(l => l.LogDate?.Month == _exportMonth && l.LogDate?.Year == _exportYear)
-                               .OrderBy(l => l.Employee?.Name)
-                               .ThenBy(l => l.LogDate)
-                               .ThenBy(l => l.LogTime)
-                               .ToList();
+        var monthLogs = (await WorkLogService.GetWorkLogsByMonthAsync(_exportYear, _exportMonth)).ToList();
 
         if (!monthLogs.Any())
         {
