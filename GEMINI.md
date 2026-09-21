@@ -16,12 +16,16 @@ WorkSphere is a comprehensive work logging and employee management system built 
 - **WorkSphere:** The main Blazor Web App project. It handles database initialization, provides API services, and serves the interactive components using **Server** render mode.
 - **Data Layer:** Uses Dapper with custom type handlers (`DapperTypeHandlers.cs`) for modern .NET types like `DateOnly` and `TimeOnly`.
 - **Service Layer:** 
-  - `WorkLogService`: Manages CRUD operations for employees, work logs, and incidents. It also handles statistical queries for categories, employee activity, and comp time.
-  - `MigrationService`: Handles importing work logs from Markdown-formatted daily log files.
+  - `WorkLogService` (`IWorkLogService`): Manages CRUD operations for employees, work logs, and incidents. It also handles statistical queries for categories, employee activity, and comp time.
+  - `MigrationService`: Handles importing legacy work logs from Markdown-formatted daily log files.
+  - `ExportService` (`IExportService`): Generates RFC 4180 CSV exports, Obsidian markdown archives, and complete JSON database snapshots. Also provides headless CLI execution for Kubernetes CronJobs.
+  - `ExportBackgroundService`: Built-in .NET `BackgroundService` that automatically runs scheduled database exports and backups while the web host is running.
 - **Features:**
   - **Incident Tracking:** Track incidents with ticket numbers and link them to work logs.
   - **Comp Time Tracker:** Automatically calculate comp time earned based on logs marked as "Comp Time".
   - **Analytics Dashboard:** Visual representation of log distribution, employee activity, comp time stats, and customizable date range presets with employee filtering.
+  - **Data Export Hub:** Web-based and server-side exports supporting customizable CSVs, Obsidian monthly markdown, and full JSON database backups.
+  - **Automated Scheduled Backups:** In-process daily scheduled backups via `ExportBackgroundService` as well as headless CLI `--backup` / `--export` mode for Kubernetes CronJobs.
   - **Client Preferences:** LocalStorage persistence for selected theme (Dark/Light mode) and preferred employee auto-selection on quick logging.
 
 ---
@@ -54,6 +58,48 @@ To build and run via Docker:
 ```bash
 docker build -t worksphere .
 docker run -p 8080:8080 worksphere
+```
+
+### Automated Backups (Kubernetes CronJob / CLI)
+WorkSphere can run headlessly to export database snapshots, CSVs, and Obsidian markdown notes into an arbitrary storage volume:
+```bash
+dotnet run --project WorkSphere -- --backup
+# Or override output path:
+dotnet run --project WorkSphere -- --backup --output /mnt/backups
+```
+
+**Kubernetes CronJob Example:**
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: worksphere-backup
+spec:
+  schedule: "0 2 * * *" # Daily at 2:00 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: worksphere:latest
+            args: ["--backup"]
+            env:
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: worksphere-secrets
+                  key: db-connection
+            - name: EXPORT_PATH
+              value: "/backups"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          restartPolicy: OnFailure
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: worksphere-backup-pvc
 ```
 
 ---

@@ -1,90 +1,386 @@
 @page "/tools"
 @using WorkSphere.Services
-@using System.Text
 @using WorkSphere.Models
+@using System.Text
 @inject MigrationService MigrationService
 @inject IWorkLogService WorkLogService
+@inject IExportService ExportService
+@inject BackupSchedulerState SchedulerState
+@inject IConfiguration Configuration
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 
-<MudText Typo="Typo.h4" GutterBottom="true">System Tools</MudText>
+<MudText Typo="Typo.h4" GutterBottom="true">System Tools & Backups</MudText>
 
 <MudGrid>
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4 h-100">
-            <MudStack Spacing="4">
-                <MudText Typo="Typo.h6">Data Import</MudText>
-                <MudText Typo="Typo.body2">
-                    Import work logs from Markdown files. The system expects files in the <code>WorkSphere/Import</code> directory.
-                </MudText>
-                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">
-                    <strong>Process:</strong> The importer parses Markdown tables with the format <code>| Date | Time | Initials | Details |</code>. It uses the employee initials to map logs to existing records and deduplicates based on date, employee, and the original details string.
-                </MudAlert>
-                <MudSpacer />
-                <MudStack Row="true" AlignItems="AlignItems.Center">
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportMarkdown" StartIcon="@Icons.Material.Filled.UploadFile">
-                        Run Import
-                    </MudButton>
-                    @if (_isImporting)
-                    {
-                        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
-                        <MudText Typo="Typo.caption">Processing...</MudText>
-                    }
+    <!-- Left Column: Data Import -->
+    <MudItem xs="12" lg="4">
+        <MudCard Elevation="3" Class="h-100 d-flex flex-column">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Legacy Data Import</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIcon Icon="@Icons.Material.Filled.UploadFile" Color="Color.Primary" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent Class="flex-grow-1">
+                <MudStack Spacing="3">
+                    <MudText Typo="Typo.body2">
+                        Import historical daily work logs from Markdown tables. Files should be located on the server in the <code>WorkSphere/Import</code> directory.
+                    </MudText>
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                        Parses tables formatted as <code>| Date | Time | Initials | Details |</code>, auto-links records by employee initials, and deduplicates existing logs.
+                    </MudAlert>
                 </MudStack>
-            </MudStack>
-        </MudPaper>
+            </MudCardContent>
+            <MudCardActions Class="pa-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportMarkdown" Disabled="@_isImporting" StartIcon="@Icons.Material.Filled.UploadFile">
+                    @(_isImporting ? "Importing..." : "Run Import")
+                </MudButton>
+                @if (_isImporting)
+                {
+                    <MudProgressCircular Class="ms-3" Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+                }
+            </MudCardActions>
+        </MudCard>
     </MudItem>
 
-    <MudItem xs="12" md="6">
-        <MudPaper Class="pa-4 h-100">
-            <MudStack Spacing="4">
-                <MudText Typo="Typo.h6">Data Export</MudText>
-                <MudText Typo="Typo.body2">
-                    Export database records back into the standard Markdown format for Obsidian backups.
-                </MudText>
-                
-                <MudStack Row="true" AlignItems="AlignItems.Center" Class="mt-2">
-                    <MudSelect T="int" Label="Year" @bind-Value="_exportYear" Dense="true" Style="max-width: 120px;">
-                        @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
-                        {
-                            <MudSelectItem Value="@y" />
-                        }
-                    </MudSelect>
-                    <MudSelect T="int" Label="Month" @bind-Value="_exportMonth" Dense="true" Style="max-width: 150px;">
-                        <MudSelectItem Value="1">January</MudSelectItem>
-                        <MudSelectItem Value="2">February</MudSelectItem>
-                        <MudSelectItem Value="3">March</MudSelectItem>
-                        <MudSelectItem Value="4">April</MudSelectItem>
-                        <MudSelectItem Value="5">May</MudSelectItem>
-                        <MudSelectItem Value="6">June</MudSelectItem>
-                        <MudSelectItem Value="7">July</MudSelectItem>
-                        <MudSelectItem Value="8">August</MudSelectItem>
-                        <MudSelectItem Value="9">September</MudSelectItem>
-                        <MudSelectItem Value="10">October</MudSelectItem>
-                        <MudSelectItem Value="11">November</MudSelectItem>
-                        <MudSelectItem Value="12">December</MudSelectItem>
-                    </MudSelect>
-                    <MudSelect T="string" Label="Format" @bind-Value="_exportFormat" Dense="true" Style="max-width: 180px;">
-                        <MudSelectItem Value="@("Original")">Original Markdown</MudSelectItem>
-                        <MudSelectItem Value="@("Extended")">Extended Markdown</MudSelectItem>
-                    </MudSelect>
-                </MudStack>
+    <!-- Right Column: Export Hub -->
+    <MudItem xs="12" lg="8">
+        <MudCard Elevation="3" Class="h-100 d-flex flex-column">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Data Export Hub</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudIcon Icon="@Icons.Material.Filled.Download" Color="Color.Secondary" />
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent Class="flex-grow-1">
+                <MudGrid Spacing="3">
+                    <!-- Export Target -->
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" Label="Export Data Target" Value="@_exportTarget" ValueChanged="OnExportTargetChanged" Variant="Variant.Outlined" Dense="true">
+                            <MudSelectItem Value="@("WorkLogs")">Work Logs (Activity Records)</MudSelectItem>
+                            <MudSelectItem Value="@("CompTime")">Comp Time Balances & Summary</MudSelectItem>
+                            <MudSelectItem Value="@("Incidents")">Incidents & Outages</MudSelectItem>
+                            <MudSelectItem Value="@("FullBackup")">Complete System Backup (JSON Snapshot)</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
 
-                <MudSpacer />
-                
-                <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="ExportMarkdown" StartIcon="@Icons.Material.Filled.Download">
-                    Export Markdown
+                    <!-- Format Selection -->
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="string" Label="Format" @bind-Value="_exportFormat" Variant="Variant.Outlined" Dense="true" Disabled="@(_exportTarget == "CompTime" || _exportTarget == "Incidents" || _exportTarget == "FullBackup")">
+                            @if (_exportTarget == "WorkLogs")
+                            {
+                                <MudSelectItem Value="@("CSV")">CSV (.csv)</MudSelectItem>
+                                <MudSelectItem Value="@("MarkdownExtended")">Markdown (Extended format)</MudSelectItem>
+                                <MudSelectItem Value="@("MarkdownOriginal")">Markdown (Original format)</MudSelectItem>
+                            }
+                            else if (_exportTarget == "FullBackup")
+                            {
+                                <MudSelectItem Value="@("JSON")">JSON (.json)</MudSelectItem>
+                            }
+                            else
+                            {
+                                <MudSelectItem Value="@("CSV")">CSV (.csv)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <!-- Filters for WorkLogs CSV -->
+                    @if (_exportTarget == "WorkLogs" && _exportFormat == "CSV")
+                    {
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="string" Label="Date Range Preset" Value="@_selectedRangePreset" ValueChanged="OnRangePresetChanged" Variant="Variant.Outlined" Dense="true">
+                                <MudSelectItem Value="@("All Time")">All Time</MudSelectItem>
+                                <MudSelectItem Value="@("This Month")">This Month</MudSelectItem>
+                                <MudSelectItem Value="@("Last Month")">Last Month</MudSelectItem>
+                                <MudSelectItem Value="@("Last 30 Days")">Last 30 Days</MudSelectItem>
+                                <MudSelectItem Value="@("Last 3 Months")">Last 3 Months</MudSelectItem>
+                                <MudSelectItem Value="@("Last 6 Months")">Last 6 Months</MudSelectItem>
+                                <MudSelectItem Value="@("This Year")">This Year</MudSelectItem>
+                                <MudSelectItem Value="@("Custom Range")">Custom Range</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+
+                        @if (_selectedRangePreset == "Custom Range")
+                        {
+                            <MudItem xs="12" sm="6">
+                                <MudDateRangePicker Label="Custom Range" @bind-DateRange="_customDateRange" Variant="Variant.Outlined" />
+                            </MudItem>
+                        }
+
+                        <MudItem xs="12" sm="6">
+                            <MudSelect T="int?" Label="Employee Filter" @bind-Value="_selectedEmployeeId" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                                <MudSelectItem T="int?" Value="@((int?)null)">All Employees</MudSelectItem>
+                                @foreach (var emp in _employees)
+                                {
+                                    <MudSelectItem T="int?" Value="@emp.Id">@emp.Name (@emp.Initials)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12" sm="6" Class="d-flex align-center">
+                            <MudCheckBox T="bool" @bind-Value="_compTimeOnly" Label="Filter Comp Time logs only" Color="Color.Primary" Dense="true" />
+                        </MudItem>
+                    }
+                    else if (_exportTarget == "WorkLogs" && (_exportFormat == "MarkdownOriginal" || _exportFormat == "MarkdownExtended"))
+                    {
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int" Label="Year" @bind-Value="_exportYear" Variant="Variant.Outlined" Dense="true">
+                                @foreach (var y in Enumerable.Range(2024, DateTime.Today.Year - 2024 + 2))
+                                {
+                                    <MudSelectItem Value="@y" />
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int" Label="Month" @bind-Value="_exportMonth" Variant="Variant.Outlined" Dense="true">
+                                <MudSelectItem Value="1">January</MudSelectItem>
+                                <MudSelectItem Value="2">February</MudSelectItem>
+                                <MudSelectItem Value="3">March</MudSelectItem>
+                                <MudSelectItem Value="4">April</MudSelectItem>
+                                <MudSelectItem Value="5">May</MudSelectItem>
+                                <MudSelectItem Value="6">June</MudSelectItem>
+                                <MudSelectItem Value="7">July</MudSelectItem>
+                                <MudSelectItem Value="8">August</MudSelectItem>
+                                <MudSelectItem Value="9">September</MudSelectItem>
+                                <MudSelectItem Value="10">October</MudSelectItem>
+                                <MudSelectItem Value="11">November</MudSelectItem>
+                                <MudSelectItem Value="12">December</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int?" Label="Employee Filter" @bind-Value="_selectedEmployeeId" Clearable="true" Variant="Variant.Outlined" Dense="true">
+                                <MudSelectItem T="int?" Value="@((int?)null)">All Employees</MudSelectItem>
+                                @foreach (var emp in _employees)
+                                {
+                                    <MudSelectItem T="int?" Value="@emp.Id">@emp.Name (@emp.Initials)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudCardContent>
+            <MudCardActions Class="pa-4 d-flex justify-space-between flex-wrap gap-2">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="DownloadExportAsync" Disabled="@_isExporting" StartIcon="@Icons.Material.Filled.Download">
+                    Download to Device
                 </MudButton>
-            </MudStack>
-        </MudPaper>
+
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="TriggerServerBackupAsync" Disabled="@_isExporting" StartIcon="@Icons.Material.Filled.Storage">
+                    Run Server-Side Backup
+                </MudButton>
+
+                @if (_isExporting)
+                {
+                    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+                }
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <!-- Automated Backups & Kubernetes CronJob Card -->
+    <MudItem xs="12">
+        <MudExpansionPanels Elevation="3">
+            <MudExpansionPanel Text="Automated Backups & Scheduling" Icon="@Icons.Material.Filled.Schedule">
+                <MudStack Spacing="3">
+                    <MudAlert Severity="@(SchedulerState.IsEnabled ? Severity.Success : Severity.Normal)" Variant="Variant.Outlined">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                            <div>
+                                <MudText Typo="Typo.subtitle2">
+                                    <strong>In-Process Background Scheduler:</strong> @(SchedulerState.IsEnabled ? "Active" : "Disabled")
+                                    @if (SchedulerState.IsEnabled)
+                                    {
+                                        <span class="ms-2 mud-text-secondary">(Cron: <code>@SchedulerState.CronExpression</code>, Retention: @(_maxBackupHistory.HasValue && _maxBackupHistory.Value > 0 ? $"Keep last {_maxBackupHistory.Value} snapshots" : "Keep all snapshots"))</span>
+                                    }
+                                </MudText>
+                                @if (SchedulerState.NextRunUtc.HasValue)
+                                {
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Next Automatic Backup:</strong> @SchedulerState.NextRunUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC
+                                    </MudText>
+                                }
+                                @if (SchedulerState.LastRunUtc.HasValue)
+                                {
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Last Backup:</strong> @SchedulerState.LastRunUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC
+                                        @(SchedulerState.LastRunSuccess == true ? " (Success)" : $" (Failed: {SchedulerState.LastRunMessage})")
+                                    </MudText>
+                                }
+                            </div>
+                            @if (SchedulerState.IsRunningNow)
+                            {
+                                <MudChip T="string" Color="Color.Info" Size="Size.Small" Icon="@Icons.Material.Filled.Autorenew">Processing...</MudChip>
+                            }
+                        </MudStack>
+                    </MudAlert>
+
+                    <MudText Typo="Typo.body2">
+                        WorkSphere supports both an <strong>in-process background scheduler</strong> and a <strong>headless CLI mode</strong> for automated backups. Backups are written to dedicated snapshot directories (<code>snapshot-YYYYMMDD-HHmmss</code>) containing full JSON backups, categorized CSV files, and monthly Markdown notes.
+                    </MudText>
+
+                    <MudGrid>
+                        <MudItem xs="12" md="6">
+                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">Configuration & Paths</MudText>
+                            <MudSimpleTable Dense="true" Hover="true">
+                                <thead>
+                                    <tr>
+                                        <th>Target</th>
+                                        <th>Config Source</th>
+                                        <th>Resolved Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Server Backup Path</td>
+                                        <td><code>appsettings.json</code> (<code>Export:OutputPath</code>) or <code>EXPORT_PATH</code></td>
+                                        <td><code>@_defaultExportDir</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Snapshot Retention</td>
+                                        <td><code>Export:ScheduledBackup:MaxBackupHistory</code></td>
+                                        <td>@(_maxBackupHistory.HasValue && _maxBackupHistory.Value > 0 ? $"Keep last {_maxBackupHistory.Value} snapshots" : "Unlimited (Never delete)")</td>
+                                    </tr>
+                                    <tr>
+                                        <td>CLI Path Override</td>
+                                        <td>Command line argument</td>
+                                        <td><code>--output &lt;path&gt;</code> or <code>-o &lt;path&gt;</code></td>
+                                    </tr>
+                                </tbody>
+                            </MudSimpleTable>
+
+                            <MudText Typo="Typo.subtitle2" Class="mt-3" Color="Color.Primary">CLI Execution Command</MudText>
+                            <pre class="pa-3 rounded mud-theme-dark" style="font-family: monospace; font-size: 0.85rem; overflow-x: auto; background-color: var(--mud-palette-background-grey);">dotnet WorkSphere.dll --backup</pre>
+                        </MudItem>
+
+                        <MudItem xs="12" md="6">
+                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">Kubernetes CronJob Manifest Example</MudText>
+                            <pre class="pa-3 rounded mud-theme-dark" style="font-family: monospace; font-size: 0.8rem; overflow-x: auto; max-height: 240px; background-color: var(--mud-palette-background-grey);">apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: worksphere-nightly-backup
+spec:
+  schedule: "0 2 * * *" # Run nightly at 2:00 AM
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: backup
+            image: worksphere:latest
+            args: ["--backup"]
+            env:
+            - name: ConnectionStrings__DefaultConnection
+              valueFrom:
+                secretKeyRef:
+                  name: worksphere-secrets
+                  key: db-connection
+            - name: EXPORT_PATH
+              value: "/backups"
+            volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+          restartPolicy: OnFailure
+          volumes:
+          - name: backup-storage
+            persistentVolumeClaim:
+              claimName: worksphere-backup-pvc</pre>
+                        </MudItem>
+                    </MudGrid>
+                </MudStack>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
     </MudItem>
 </MudGrid>
 
 @code {
     private bool _isImporting = false;
+    private bool _isExporting = false;
+
+    private string _exportTarget = "WorkLogs";
+    private string _exportFormat = "CSV";
     private int _exportYear = DateTime.Today.Year;
     private int _exportMonth = DateTime.Today.Month;
-    private string _exportFormat = "Original";
+
+    private string _selectedRangePreset = "All Time";
+    private DateRange? _customDateRange;
+    private DateOnly? _filterStartDate;
+    private DateOnly? _filterEndDate;
+    private int? _selectedEmployeeId;
+    private bool _compTimeOnly;
+
+    private List<Employee> _employees = [];
+    private string _defaultExportDir = "Exports";
+    private int? _maxBackupHistory;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+        _defaultExportDir = ExportService.GetDefaultExportDirectory();
+        _maxBackupHistory = Configuration.GetValue<int?>("Export:ScheduledBackup:MaxBackupHistory");
+    }
+
+    private void OnExportTargetChanged(string target)
+    {
+        _exportTarget = target;
+        _exportFormat = target switch
+        {
+            "WorkLogs" => "CSV",
+            "CompTime" => "CSV",
+            "Incidents" => "CSV",
+            "FullBackup" => "JSON",
+            _ => "CSV"
+        };
+    }
+
+    private void OnRangePresetChanged(string preset)
+    {
+        _selectedRangePreset = preset;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        switch (preset)
+        {
+            case "This Month":
+                _filterStartDate = new DateOnly(today.Year, today.Month, 1);
+                _filterEndDate = _filterStartDate.Value.AddMonths(1).AddDays(-1);
+                break;
+            case "Last Month":
+                var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
+                _filterStartDate = firstOfThisMonth.AddMonths(-1);
+                _filterEndDate = firstOfThisMonth.AddDays(-1);
+                break;
+            case "Last 30 Days":
+                _filterStartDate = today.AddDays(-30);
+                _filterEndDate = today;
+                break;
+            case "Last 3 Months":
+                _filterStartDate = today.AddMonths(-3);
+                _filterEndDate = today;
+                break;
+            case "Last 6 Months":
+                _filterStartDate = today.AddMonths(-6);
+                _filterEndDate = today;
+                break;
+            case "This Year":
+                _filterStartDate = new DateOnly(today.Year, 1, 1);
+                _filterEndDate = new DateOnly(today.Year, 12, 31);
+                break;
+            case "Custom Range":
+                if (_customDateRange?.Start != null && _customDateRange?.End != null)
+                {
+                    _filterStartDate = DateOnly.FromDateTime(_customDateRange.Start.Value);
+                    _filterEndDate = DateOnly.FromDateTime(_customDateRange.End.Value);
+                }
+                break;
+            case "All Time":
+            default:
+                _filterStartDate = null;
+                _filterEndDate = null;
+                break;
+        }
+    }
 
     private async Task ImportMarkdown()
     {
@@ -92,7 +388,7 @@
         try
         {
             await MigrationService.MigrateAsync();
-            Snackbar.Add("Import successful", Severity.Success);
+            Snackbar.Add("Import completed successfully.", Severity.Success);
         }
         catch (Exception ex)
         {
@@ -104,68 +400,117 @@
         }
     }
 
-    private async Task ExportMarkdown()
+    private async Task DownloadExportAsync()
     {
-        var monthLogs = (await WorkLogService.GetWorkLogsByMonthAsync(_exportYear, _exportMonth)).ToList();
-
-        if (!monthLogs.Any())
+        _isExporting = true;
+        try
         {
-            Snackbar.Add("No logs to export for this month.", Severity.Warning);
-            return;
-        }
-
-        var exportDate = new DateTime(_exportYear, _exportMonth, 1);
-        var sb = new StringBuilder();
-        sb.AppendLine($"# {exportDate.ToString("MMMM yyyy")} ({_exportFormat} Format)");
-        sb.AppendLine();
-
-        var groupedLogs = monthLogs.GroupBy(l => l.EmployeeId);
-
-        foreach (var group in groupedLogs)
-        {
-            var firstLog = group.First();
-            var empName = firstLog.Employee?.Name ?? "Unknown";
-            var initials = firstLog.Employee?.Initials ?? "??";
-            
-            sb.AppendLine($"## Subject {empName}");
-            sb.AppendLine();
-
-            if (_exportFormat == "Extended")
+            switch (_exportTarget)
             {
-                sb.AppendLine("| Day      | Time  | Subject | Category            | Comp   | Incident | Details                                          |");
-                sb.AppendLine("|----------|-------|---------|---------------------|--------|----------|--------------------------------------------------|");
+                case "WorkLogs":
+                    if (_exportFormat == "CSV")
+                    {
+                        var start = _filterStartDate;
+                        var end = _filterEndDate;
+                        if (_selectedRangePreset == "Custom Range" && _customDateRange?.Start != null && _customDateRange?.End != null)
+                        {
+                            start = DateOnly.FromDateTime(_customDateRange.Start.Value);
+                            end = DateOnly.FromDateTime(_customDateRange.End.Value);
+                        }
+
+                        var filter = new WorkLogExportFilter
+                        {
+                            StartDate = start,
+                            EndDate = end,
+                            EmployeeId = _selectedEmployeeId,
+                            CompTimeOnly = _compTimeOnly ? true : null
+                        };
+
+                        var csv = await ExportService.ExportWorkLogsCsvAsync(filter);
+                        var fileName = $"worklogs-export-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv";
+                        await JSRuntime.InvokeVoidAsync("downloadFileFromText", fileName, csv, "text/csv");
+                        Snackbar.Add($"Downloaded {fileName}", Severity.Success);
+                    }
+                    else
+                    {
+                        var format = _exportFormat == "MarkdownExtended" ? "Extended" : "Original";
+                        var md = await ExportService.ExportMarkdownAsync(_exportYear, _exportMonth, format, _selectedEmployeeId);
+
+                        if (string.IsNullOrWhiteSpace(md))
+                        {
+                            Snackbar.Add("No logs found for the selected month and employee.", Severity.Warning);
+                            return;
+                        }
+
+                        var fileName = $"{_exportYear:D4}-{_exportMonth:D2}.md";
+                        await JSRuntime.InvokeVoidAsync("downloadFileFromText", fileName, md, "text/markdown");
+                        Snackbar.Add($"Downloaded {fileName}", Severity.Success);
+                    }
+                    break;
+
+                case "CompTime":
+                    var compCsv = await ExportService.ExportCompTimeSummaryCsvAsync();
+                    var compFileName = $"comptime-summary-{DateTime.UtcNow:yyyyMMdd}.csv";
+                    await JSRuntime.InvokeVoidAsync("downloadFileFromText", compFileName, compCsv, "text/csv");
+                    Snackbar.Add($"Downloaded {compFileName}", Severity.Success);
+                    break;
+
+                case "Incidents":
+                    var incCsv = await ExportService.ExportIncidentsCsvAsync();
+                    var incFileName = $"incidents-{DateTime.UtcNow:yyyyMMdd}.csv";
+                    await JSRuntime.InvokeVoidAsync("downloadFileFromText", incFileName, incCsv, "text/csv");
+                    Snackbar.Add($"Downloaded {incFileName}", Severity.Success);
+                    break;
+
+                case "FullBackup":
+                    var json = await ExportService.ExportFullBackupJsonAsync();
+                    var jsonFileName = $"worksphere-full-backup-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json";
+                    await JSRuntime.InvokeVoidAsync("downloadFileFromText", jsonFileName, json, "application/json");
+                    Snackbar.Add($"Downloaded {jsonFileName}", Severity.Success);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    private async Task TriggerServerBackupAsync()
+    {
+        _isExporting = true;
+        try
+        {
+            var result = await ExportService.RunBackupAsync();
+            SchedulerState.LastRunUtc = DateTime.UtcNow;
+            SchedulerState.LastRunSuccess = result.Success;
+            SchedulerState.LastRunMessage = result.Success
+                ? $"{result.FilesWritten} files written to {result.OutputDirectory}"
+                : result.ErrorMessage;
+
+            if (result.Success)
+            {
+                Snackbar.Add($"Server backup created: {result.FilesWritten} files written to {result.OutputDirectory}", Severity.Success);
             }
             else
             {
-                sb.AppendLine("| Day      | Time  | Subject | Details                                          |");
-                sb.AppendLine("|----------|-------|---------|--------------------------------------------------|");
+                Snackbar.Add($"Server backup failed: {result.ErrorMessage}", Severity.Error);
             }
-
-            foreach (var log in group)
-            {
-                var dateStr = log.LogDate?.ToString("MM/dd/yy") ?? "";
-                var timeStr = log.LogTime?.ToString("HH:mm") ?? "";
-                var details = log.Details ?? log.OriginalDetails ?? "";
-                
-                if (_exportFormat == "Extended")
-                {
-                    var catStr = $"{log.MainCategory}/{log.SubCategory}";
-                    var compStr = log.EarnsCompTime ? $"+{log.Hours:0.0}" : log.UsesCompTime ? $"-{log.Hours:0.0}" : "";
-                    var incStr = log.IncidentId.HasValue ? $"#{log.IncidentId}" : "";
-                    
-                    sb.AppendLine($"| {dateStr,-8} | {timeStr,-5} | {initials,-7} | {catStr,-19} | {compStr,-6} | {incStr,-8} | {details,-48} |");
-                }
-                else
-                {
-                    sb.AppendLine($"| {dateStr,-8} | {timeStr,-5} | {initials,-7} | {details,-48} |");
-                }
-            }
-            sb.AppendLine();
         }
-
-        var fileName = $"{exportDate:yyyy-MM}.md";
-        
-        await JSRuntime.InvokeVoidAsync("downloadFileFromText", fileName, sb.ToString());
-        Snackbar.Add($"Exported {fileName}", Severity.Success);
+        catch (Exception ex)
+        {
+            SchedulerState.LastRunUtc = DateTime.UtcNow;
+            SchedulerState.LastRunSuccess = false;
+            SchedulerState.LastRunMessage = ex.Message;
+            Snackbar.Add($"Server backup error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isExporting = false;
+        }
     }
 }

@@ -32,6 +32,9 @@ try
     builder.Services.AddScoped<WorkLogService>();
     builder.Services.AddScoped<IWorkLogService>(sp => sp.GetRequiredService<WorkLogService>());
     builder.Services.AddScoped<MigrationService>();
+    builder.Services.AddScoped<IExportService, ExportService>();
+    builder.Services.AddSingleton<WorkSphere.Models.BackupSchedulerState>();
+    builder.Services.AddHostedService<ExportBackgroundService>();
     builder.Services.AddScoped<WorkSphere.Tools.LogAuditTool>();
 
     var app = builder.Build();
@@ -67,6 +70,18 @@ try
                 Log.Fatal(ex, "Database initialization failed.");
             }
         }
+    }
+
+    // Check for --export or --backup flag (CLI automation & Kubernetes CronJob)
+    if (args.Contains("--export") || args.Contains("--backup"))
+    {
+        using (var scope = app.Services.CreateScope())
+        {
+            var exportService = scope.ServiceProvider.GetRequiredService<IExportService>();
+            var exitCode = await exportService.RunCliExportAsync(args);
+            Environment.ExitCode = exitCode;
+        }
+        return;
     }
 
     // Configure the HTTP request pipeline.

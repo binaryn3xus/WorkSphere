@@ -1,7 +1,7 @@
 // WorkSphere Client Scripts
 
-window.downloadFileFromText = (fileName, content) => {
-    const blob = new Blob([content], { type: 'text/markdown' });
+window.downloadFileFromText = (fileName, content, mimeType = 'text/plain') => {
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const anchorElement = document.createElement('a');
     anchorElement.href = url;
