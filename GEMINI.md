@@ -46,7 +46,6 @@ WorkSphere is a comprehensive work logging and employee management system built 
      "DefaultConnection": "Host=your_host;Database=worksphere;Username=your_user;Password=your_password"
    }
    ```
-3. (Optional) Configure the `Migration:LogsPath` if you intend to use the migration service.
 
 ### Execution
 Run the project using the .NET CLI:
