@@ -29,6 +29,8 @@ try
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
 
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<IUserTimeService, UserTimeService>();
     builder.Services.AddScoped<WorkLogService>();
     builder.Services.AddScoped<IWorkLogService>(sp => sp.GetRequiredService<WorkLogService>());
     builder.Services.AddScoped<MigrationService>();

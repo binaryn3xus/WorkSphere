@@ -2,6 +2,7 @@
 @using WorkSphere.Models
 @using WorkSphere.Services
 @inject IWorkLogService WorkLogService
+@inject IUserTimeService UserTimeService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager Navigation
@@ -171,14 +172,14 @@
 
     private async Task LoadDashboardData()
     {
-        _todaysLogs = (await WorkLogService.GetTodaysStatusAsync()).ToList();
+        var today = UserTimeService.GetToday();
+        _todaysLogs = (await WorkLogService.GetTodaysStatusAsync(today)).ToList();
         _weeklyLogs = (await WorkLogService.GetThisWeeksActivityAsync()).ToList();
         
         var employees = await WorkLogService.GetEmployeesAsync();
         _totalEmployees = employees.Count();
 
         // Count logs for current month directly via indexed query
-        var today = DateOnly.FromDateTime(DateTime.Today);
         _monthLogsCount = await WorkLogService.GetWorkLogsCountByMonthAsync(today.Year, today.Month);
     }
 

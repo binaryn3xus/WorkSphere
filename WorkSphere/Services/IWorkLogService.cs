@@ -38,7 +38,7 @@ public interface IWorkLogService
     Task<IEnumerable<CategoryStatDto>> GetSubCategoryStatsAsync();
     Task<IEnumerable<EmployeeStatDto>> GetEmployeeStatsAsync();
     Task<IEnumerable<DailyActivityDto>> GetDailyActivityAsync();
-    Task<IEnumerable<WorkLog>> GetTodaysStatusAsync();
+    Task<IEnumerable<WorkLog>> GetTodaysStatusAsync(DateOnly? targetDate = null);
     Task<IEnumerable<WorkLog>> GetThisWeeksActivityAsync();
     Task<IEnumerable<WorkLog>> GetRecentLogsAsync(int count = 5);
     Task<IEnumerable<CompTimeBalanceDto>> GetCompTimeStatsAsync();

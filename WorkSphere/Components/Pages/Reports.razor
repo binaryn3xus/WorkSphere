@@ -2,6 +2,7 @@
 @using WorkSphere.Services
 @using WorkSphere.Models
 @inject IWorkLogService WorkLogService
+@inject IUserTimeService UserTimeService
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Class="mb-6" Spacing="3">
     <div>
@@ -306,7 +307,7 @@
     private async Task OnRangePresetChanged(string preset)
     {
         _selectedRangePreset = preset;
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var today = UserTimeService.GetToday();
 
         switch (preset)
         {
@@ -475,15 +476,15 @@
 
         // 5. Matrix Pivot
         var matrixLogs = filteredLogs;
+        var today = UserTimeService.GetToday();
         if (_hideFutureDates)
         {
-            var today = DateOnly.FromDateTime(DateTime.Today);
             matrixLogs = matrixLogs.Where(l => l.LogDate <= today).ToList();
         }
 
         if (!_filterStartDate.HasValue && !_filterEndDate.HasValue)
         {
-            var cutoff = DateOnly.FromDateTime(DateTime.Today.AddDays(-30));
+            var cutoff = today.AddDays(-30);
             matrixLogs = matrixLogs.Where(l => l.LogDate >= cutoff).ToList();
         }
 

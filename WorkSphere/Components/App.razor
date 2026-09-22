@@ -10,6 +10,14 @@
     <link href=@Assets["app.css"] rel="stylesheet" />
     <ImportMap />
     <link rel="icon" type="image/ico" href="favicon.ico" />
+    <script>
+        (function() {
+            try {
+                var offset = new Date().getTimezoneOffset();
+                document.cookie = "ws_tz_offset=" + offset + ";path=/;max-age=31536000;SameSite=Lax";
+            } catch(e) {}
+        })();
+    </script>
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 

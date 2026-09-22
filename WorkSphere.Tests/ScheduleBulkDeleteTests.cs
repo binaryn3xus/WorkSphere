@@ -689,6 +689,7 @@ public sealed class ScheduleBulkDeleteTests : IDisposable
             Services.AddSingleton(environmentMock.Object);
             Services.AddSingleton<WorkLogService>(WorkLogServiceMock.Object);
             Services.AddSingleton<IWorkLogService>(WorkLogServiceMock.Object);
+            Services.AddSingleton<IUserTimeService>(new UserTimeService(new Microsoft.AspNetCore.Http.HttpContextAccessor(), configuration));
             Services.AddSingleton(migrationService);
             Services.AddSingleton(_dialogServiceMock.Object);
             Services.AddSingleton(_snackbarMock.Object);

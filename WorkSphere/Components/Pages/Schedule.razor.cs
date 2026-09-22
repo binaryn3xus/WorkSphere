@@ -25,6 +25,7 @@ public partial class Schedule
         new("Audit", Icons.Material.Filled.FactCheck)
     ];
 
+    private DateOnly Today => UserTimeService.GetToday();
     private DateTime _currentDate = DateTime.Today;
     private List<WorkLog> _logs = new();
     private string[] _daysOfWeek = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
@@ -72,6 +73,9 @@ public partial class Schedule
 
     protected override async Task OnInitializedAsync()
     {
+        _currentDate = Today.ToDateTime(TimeOnly.MinValue);
+        _auditYear = Today.Year;
+        _auditMonth = Today.Month;
         await LoadData();
         await LoadAuditData();
     }

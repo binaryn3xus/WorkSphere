@@ -21,6 +21,7 @@ WorkSphere is a comprehensive work logging and employee management system built 
   - `MigrationService`: Legacy parser utility used for Markdown daily log audits in schedule analysis.
   - `ExportService` (`IExportService`): Generates RFC 4180 CSV exports, Markdown notes, and complete JSON database snapshots into timestamped snapshot folders (`snapshot-YYYYMMDD-HHmmss`). Also provides headless CLI execution for Kubernetes CronJobs and automated backup retention cleanup (`MaxBackupHistory`).
   - `ExportBackgroundService`: Built-in .NET `BackgroundService` that automatically runs scheduled database exports and backups via Cron expressions while the web host is running.
+  - `UserTimeService` (`IUserTimeService`): Resolves the client user's local date and time via client browser cookie (`ws_tz_offset`), with fallback to configured time zone (`TimeZone` / `APP_TIMEZONE` / `TZ` environment variables) or server local time, preventing UTC calendar skew in containerized environments.
 - **Features:**
   - **Incident Tracking:** Track incidents with ticket numbers and link them to work logs.
   - **Comp Time Tracker:** Automatically calculate comp time earned based on logs marked as "Comp Time".

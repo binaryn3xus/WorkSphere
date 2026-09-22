@@ -417,7 +417,7 @@ public class WorkLogService : IWorkLogService
         return await connection.QueryAsync<DailyActivityDto>(sql);
     }
 
-    public async Task<IEnumerable<WorkLog>> GetTodaysStatusAsync()
+    public async Task<IEnumerable<WorkLog>> GetTodaysStatusAsync(DateOnly? targetDate = null)
     {
         const string sql = @"
             SELECT l.*, e.* 
@@ -427,7 +427,7 @@ public class WorkLogService : IWorkLogService
             ORDER BY l.LogTime DESC";
         
         using var connection = CreateConnection();
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var today = targetDate ?? DateOnly.FromDateTime(DateTime.Today);
         return await connection.QueryAsync<WorkLog, Employee, WorkLog>(sql, (log, employee) =>
         {
             log.Employee = employee;

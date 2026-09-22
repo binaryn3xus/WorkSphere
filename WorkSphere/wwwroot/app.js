@@ -13,7 +13,11 @@ window.downloadFileFromText = (fileName, content, mimeType = 'text/plain') => {
 };
 
 window.getLocalTimezoneOffset = () => {
-    return new Date().getTimezoneOffset();
+    const offset = new Date().getTimezoneOffset();
+    try {
+        document.cookie = "ws_tz_offset=" + offset + ";path=/;max-age=31536000;SameSite=Lax";
+    } catch(e) {}
+    return offset;
 };
 
 window.measureCalendarContextMenuPosition = (element) => {
