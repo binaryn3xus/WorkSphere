@@ -79,6 +79,57 @@ public class UserTimeServiceTests
     }
 
     [Fact]
+    public void GetNow_WithoutCookie_ResolvesAmericaNewYorkTimeZone()
+    {
+        // Arrange: No cookie, configured with America/New_York
+        var contextAccessorMock = new Mock<IHttpContextAccessor>();
+        contextAccessorMock.Setup(a => a.HttpContext).Returns((HttpContext?)null);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TimeZone"] = "America/New_York"
+            })
+            .Build();
+
+        var service = new UserTimeService(contextAccessorMock.Object, config);
+
+        // Act
+        var now = service.GetNow();
+        var utcNow = DateTime.UtcNow;
+
+        // Eastern time is UTC-4 (EDT) or UTC-5 (EST)
+        var diffHours = (utcNow - now).TotalHours;
+        Assert.True(diffHours >= 3.9 && diffHours <= 5.1, $"Expected diff between 4 and 5 hours, got {diffHours}");
+    }
+
+    [Fact]
+    public void GetNow_WithTzEnvironmentVariable_ResolvesAmericaNewYork()
+    {
+        var prevTz = Environment.GetEnvironmentVariable("TZ");
+        try
+        {
+            Environment.SetEnvironmentVariable("TZ", "America/New_York");
+
+            var contextAccessorMock = new Mock<IHttpContextAccessor>();
+            contextAccessorMock.Setup(a => a.HttpContext).Returns((HttpContext?)null);
+
+            var config = new ConfigurationBuilder().Build();
+            var service = new UserTimeService(contextAccessorMock.Object, config);
+
+            var now = service.GetNow();
+            var utcNow = DateTime.UtcNow;
+
+            var diffHours = (utcNow - now).TotalHours;
+            Assert.True(diffHours >= 3.9 && diffHours <= 5.1, $"Expected diff between 4 and 5 hours, got {diffHours}");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TZ", prevTz);
+        }
+    }
+
+    [Fact]
     public void GetToday_MatchesDateOfGetNow()
     {
         var httpContext = new DefaultHttpContext();

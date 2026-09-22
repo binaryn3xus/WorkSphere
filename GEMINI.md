@@ -94,6 +94,8 @@ spec:
                   key: db-connection
             - name: EXPORT_PATH
               value: "/backups"
+            - name: TZ
+              value: "America/New_York"
             volumeMounts:
             - name: backup-storage
               mountPath: /backups
