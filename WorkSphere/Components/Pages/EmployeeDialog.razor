@@ -1,0 +1,122 @@
+@using WorkSphere.Models
+@using WorkSphere.Services
+@using MudBlazor
+@inject IWorkLogService WorkLogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@(_isEdit ? Icons.Material.Filled.Edit : Icons.Material.Filled.PersonAdd)" Class="me-2" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">@(_isEdit ? "Edit Team Member" : "Add New Team Member")</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3" Class="pt-2">
+            <MudTextField @bind-Value="_name"
+                          Label="Full Name"
+                          Variant="Variant.Outlined"
+                          Required="true"
+                          RequiredError="Full name is required"
+                          HelperText="E.g., Jane Doe"
+                          OnBlur="OnNameBlur" />
+
+            <MudTextField @bind-Value="_initials"
+                          Label="Initials"
+                          Variant="Variant.Outlined"
+                          MaxLength="5"
+                          Required="true"
+                          RequiredError="Initials are required"
+                          HelperText="Up to 5 characters, e.g., JD" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="@_isSaving">
+            @(_isSaving ? "Saving..." : (_isEdit ? "Save Changes" : "Add Member"))
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudBlazor.IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Employee? Employee { get; set; }
+
+    private bool _isEdit => Employee != null && Employee.Id > 0;
+    private string _name = string.Empty;
+    private string _initials = string.Empty;
+    private bool _isSaving = false;
+
+    protected override void OnInitialized()
+    {
+        if (Employee != null)
+        {
+            _name = Employee.Name;
+            _initials = Employee.Initials;
+        }
+    }
+
+    private void OnNameBlur()
+    {
+        if (!_isEdit && string.IsNullOrWhiteSpace(_initials) && !string.IsNullOrWhiteSpace(_name))
+        {
+            var parts = _name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1)
+            {
+                _initials = parts[0].Length >= 2 ? parts[0][..2].ToUpperInvariant() : parts[0].ToUpperInvariant();
+            }
+            else if (parts.Length >= 2)
+            {
+                _initials = $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
+            }
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_initials))
+        {
+            Snackbar.Add("Both Name and Initials are required.", Severity.Warning);
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            if (_isEdit)
+            {
+                var updated = new Employee
+                {
+                    Id = Employee!.Id,
+                    Name = _name.Trim(),
+                    Initials = _initials.Trim().ToUpperInvariant()
+                };
+                await WorkLogService.UpdateEmployeeAsync(updated);
+                Snackbar.Add($"Updated {updated.Name}", Severity.Success);
+            }
+            else
+            {
+                var newEmp = new Employee
+                {
+                    Name = _name.Trim(),
+                    Initials = _initials.Trim().ToUpperInvariant()
+                };
+                await WorkLogService.AddEmployeeAsync(newEmp);
+                Snackbar.Add($"Added {newEmp.Name}", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving employee: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+}

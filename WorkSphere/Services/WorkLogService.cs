@@ -33,6 +33,14 @@ public class WorkLogService : IWorkLogService
         await connection.ExecuteAsync(sql, employee);
     }
 
+    public async Task UpdateEmployeeAsync(Employee employee)
+    {
+        _logger.LogInformation("Updating employee ID: {Id}", employee.Id);
+        const string sql = "UPDATE Employees SET Name = @Name, Initials = @Initials WHERE Id = @Id";
+        using var connection = CreateConnection();
+        await connection.ExecuteAsync(sql, employee);
+    }
+
     public async Task DeleteEmployeeAsync(int id)
     {
         _logger.LogInformation("Deleting employee ID: {Id}", id);

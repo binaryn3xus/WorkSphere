@@ -4,139 +4,423 @@
 @inject IWorkLogService WorkLogService
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Navigation
 
-<MudText Typo="Typo.h4" GutterBottom="true">Manage Employees</MudText>
+<!-- Page Header -->
+<div class="d-flex justify-space-between align-center flex-wrap gap-3 mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Team Directory</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            Manage team members, monitor logging activity, and track comp time balances.
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PersonAdd"
+               OnClick="OpenAddEmployeeDialog">
+        Add Team Member
+    </MudButton>
+</div>
 
-<MudPaper Elevation="3" Class="pa-4 mb-4">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2" Class="employees-toolbar">
-        <MudTextField @bind-Value="_newEmployee.Name" Label="Full Name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="employees-toolbar__name" />
-        <MudTextField @bind-Value="_newEmployee.Initials" Label="Initials" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="5" Class="employees-toolbar__initials" />
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEmployee">Add Employee</MudButton>
-    </MudStack>
-</MudPaper>
+<!-- KPI Summary Cards -->
+<MudGrid Class="mb-4" Spacing="3">
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1">
+            <MudCardContent Class="d-flex align-center pa-4">
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Large" Class="me-3">
+                    <MudIcon Icon="@Icons.Material.Filled.People" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Total Members</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@_employees.Count</MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
 
-<div class="d-none d-sm-block">
-    <MudTable Items="@_employees" Dense="true" Hover="true" Elevation="3">
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1">
+            <MudCardContent Class="d-flex align-center pa-4">
+                <MudAvatar Color="Color.Info" Variant="Variant.Filled" Size="Size.Large" Class="me-3">
+                    <MudIcon Icon="@Icons.Material.Filled.AssignmentTurnedIn" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Active Loggers</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@_activeLoggerCount</MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1">
+            <MudCardContent Class="d-flex align-center pa-4">
+                <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Large" Class="me-3">
+                    <MudIcon Icon="@Icons.Material.Filled.HistoryEdu" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Total Logs</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@_totalLogCount.ToString("N0")</MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="3">
+        <MudCard Elevation="1">
+            <MudCardContent Class="d-flex align-center pa-4">
+                <MudAvatar Color="Color.Warning" Variant="Variant.Filled" Size="Size.Large" Class="me-3">
+                    <MudIcon Icon="@Icons.Material.Filled.HourglassBottom" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Total Comp Balance</MudText>
+                    <MudText Typo="Typo.h5" Class="font-weight-bold">@(_totalCompBalance >= 0 ? $"+{_totalCompBalance:F1}" : $"{_totalCompBalance:F1}") hrs</MudText>
+                </div>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+<!-- Search and View Toolbar -->
+<MudCard Elevation="1" Class="mb-4">
+    <MudCardContent Class="py-3 px-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="flex-wrap gap-3">
+            <MudTextField @bind-Value="_searchString"
+                          Placeholder="Search by name or initials..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          IconSize="Size.Small"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Clearable="true"
+                          Immediate="true"
+                          Style="max-width: 380px; width: 100%;" />
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="me-2">View:</MudText>
+                <MudToggleGroup T="bool" Value="@_isCardView" ValueChanged="OnViewChanged" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary" Size="Size.Small">
+                    <MudToggleItem Value="@true">
+                        <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Small" Class="me-1" /> Cards
+                    </MudToggleItem>
+                    <MudToggleItem Value="@false">
+                        <MudIcon Icon="@Icons.Material.Filled.TableRows" Size="Size.Small" Class="me-1" /> Table
+                    </MudToggleItem>
+                </MudToggleGroup>
+            </MudStack>
+        </MudStack>
+    </MudCardContent>
+</MudCard>
+
+@if (_isLoading)
+{
+    <MudPaper Elevation="0" Class="pa-8 d-flex flex-column align-center justify-center mud-background-gray rounded">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Medium" Class="mb-3" />
+        <MudText Typo="Typo.body2" Color="Color.Secondary">Loading team directory...</MudText>
+    </MudPaper>
+}
+else if (!FilteredEmployees.Any())
+{
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="my-4">
+        @if (string.IsNullOrWhiteSpace(_searchString))
+        {
+            <span>No team members registered yet. Click <strong>Add Team Member</strong> to create your first employee record.</span>
+        }
+        else
+        {
+            <span>No team members matched your search for "<strong>@_searchString</strong>".</span>
+        }
+    </MudAlert>
+}
+else if (_isCardView)
+{
+    <!-- Card Grid View -->
+    <MudGrid Spacing="3">
+        @foreach (var item in FilteredEmployees)
+        {
+            <MudItem xs="12" sm="6" lg="4">
+                <MudCard Elevation="2" Class="h-100 d-flex flex-column rounded-lg">
+                    <MudCardHeader>
+                        <CardHeaderAvatar>
+                            <MudAvatar Color="@GetAvatarColor(item.Employee.Name)" Size="Size.Medium" Variant="Variant.Filled">
+                                @item.Employee.Initials
+                            </MudAvatar>
+                        </CardHeaderAvatar>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@item.Employee.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                ID #@item.Employee.Id • Initials: <strong>@item.Employee.Initials</strong>
+                            </MudText>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            <MudTooltip Text="Edit Member">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                               Size="Size.Small"
+                                               Color="Color.Default"
+                                               OnClick="@(() => OpenEditEmployeeDialog(item.Employee))"
+                                               aria-label="Edit employee" />
+                            </MudTooltip>
+                            <MudTooltip Text="Delete Member">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteEmployee(item))"
+                                               aria-label="Delete employee" />
+                            </MudTooltip>
+                        </CardHeaderActions>
+                    </MudCardHeader>
+
+                    <MudCardContent Class="flex-grow-1 py-2">
+                        <MudPaper Elevation="0" Class="pa-3 mud-background-gray rounded">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <div>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Work Logs</MudText>
+                                    <div class="d-flex align-center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Article" Size="Size.Small" Color="Color.Primary" Class="me-1" />
+                                        <MudText Typo="Typo.body2" Class="font-weight-medium">@item.LogCount.ToString("N0") records</MudText>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">Comp Balance</MudText>
+                                    <div>
+                                        <MudChip T="string"
+                                                 Color="@(item.CompBalance > 0 ? Color.Success : (item.CompBalance < 0 ? Color.Error : Color.Default))"
+                                                 Size="Size.Small"
+                                                 Variant="Variant.Text">
+                                            @(item.CompBalance >= 0 ? $"+{item.CompBalance:F1}" : $"{item.CompBalance:F1}") hrs
+                                        </MudChip>
+                                    </div>
+                                </div>
+                            </MudStack>
+                        </MudPaper>
+                    </MudCardContent>
+
+                    <MudCardActions Class="px-4 py-3 d-flex justify-space-between align-center">
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.BarChart"
+                                   OnClick="@(() => NavigateToReports(item.Employee.Id))">
+                            View Analytics
+                        </MudButton>
+
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Default"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Edit"
+                                   OnClick="@(() => OpenEditEmployeeDialog(item.Employee))">
+                            Edit
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    <!-- Table View -->
+    <MudTable Items="@FilteredEmployees"
+              Dense="true"
+              Hover="true"
+              Elevation="2"
+              Class="rounded-lg">
         <HeaderContent>
-            <MudTh>ID</MudTh>
-            <MudTh>Name</MudTh>
+            <MudTh>Team Member</MudTh>
             <MudTh>Initials</MudTh>
-            <MudTh Style="width: 100px;">Actions</MudTh>
+            <MudTh>Total Work Logs</MudTh>
+            <MudTh>Comp Balance</MudTh>
+            <MudTh Style="text-align: right;">Actions</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd DataLabel="ID">@context.Id</MudTd>
-            <MudTd DataLabel="Name">@context.Name</MudTd>
-            <MudTd DataLabel="Initials">@context.Initials</MudTd>
-            <MudTd>
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteEmployee(context))" />
+            <MudTd DataLabel="Team Member">
+                <div class="d-flex align-center">
+                    <MudAvatar Color="@GetAvatarColor(context.Employee.Name)" Size="Size.Small" Class="me-2">
+                        @context.Employee.Initials
+                    </MudAvatar>
+                    <div>
+                        <MudText Typo="Typo.body2" Class="font-weight-medium">@context.Employee.Name</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">ID #@context.Employee.Id</MudText>
+                    </div>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Initials">
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">
+                    @context.Employee.Initials
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Total Work Logs">
+                @context.LogCount.ToString("N0") logs
+            </MudTd>
+            <MudTd DataLabel="Comp Balance">
+                <MudChip T="string"
+                         Color="@(context.CompBalance > 0 ? Color.Success : (context.CompBalance < 0 ? Color.Error : Color.Default))"
+                         Size="Size.Small"
+                         Variant="Variant.Text">
+                    @(context.CompBalance >= 0 ? $"+{context.CompBalance:F1}" : $"{context.CompBalance:F1}") hrs
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Actions" Style="text-align: right;">
+                <MudTooltip Text="View Analytics">
+                    <MudIconButton Icon="@Icons.Material.Filled.BarChart"
+                                   Size="Size.Small"
+                                   Color="Color.Primary"
+                                   OnClick="@(() => NavigateToReports(context.Employee.Id))"
+                                   aria-label="View analytics" />
+                </MudTooltip>
+                <MudTooltip Text="Edit Member">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Size="Size.Small"
+                                   Color="Color.Default"
+                                   OnClick="@(() => OpenEditEmployeeDialog(context.Employee))"
+                                   aria-label="Edit employee" />
+                </MudTooltip>
+                <MudTooltip Text="Delete Member">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => DeleteEmployee(context))"
+                                   aria-label="Delete employee" />
+                </MudTooltip>
             </MudTd>
         </RowTemplate>
     </MudTable>
-</div>
-
-<div class="d-block d-sm-none">
-    @if (_employees.Any())
-    {
-        <MudStack Spacing="2">
-            @foreach (var employee in _employees)
-            {
-                <MudPaper Elevation="0" Class="pa-4 employee-mobile-card">
-                    <MudStack Spacing="2">
-                        <MudStack Row="true" AlignItems="AlignItems.Start" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap">
-                            <MudStack Spacing="0">
-                                <MudText Typo="Typo.subtitle1" Class="font-weight-bold">@employee.Name</MudText>
-                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Employee ID #@employee.Id</MudText>
-                            </MudStack>
-
-                            <MudChip T="string" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Icon="@Icons.Material.Filled.Badge">
-                                @employee.Initials
-                            </MudChip>
-                        </MudStack>
-
-                        <MudPaper Elevation="0" Class="pa-3 employee-mobile-card__meta">
-                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                <MudText Typo="Typo.caption" Class="mud-text-secondary text-uppercase">Initials</MudText>
-                                <MudText Typo="Typo.body2" Class="font-weight-medium">@employee.Initials</MudText>
-                            </MudStack>
-                        </MudPaper>
-
-                        <MudStack Row="true" Justify="Justify.FlexEnd">
-                            <MudButton Variant="Variant.Outlined"
-                                       Color="Color.Error"
-                                       Size="Size.Small"
-                                       StartIcon="@Icons.Material.Filled.Delete"
-                                       OnClick="@(() => DeleteEmployee(employee))">
-                                Delete
-                            </MudButton>
-                        </MudStack>
-                    </MudStack>
-                </MudPaper>
-            }
-        </MudStack>
-    }
-    else
-    {
-        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">No employees have been added yet.</MudAlert>
-    }
-</div>
-
-
+}
 
 @code {
-    private List<Employee> _employees = new();
-    private Employee _newEmployee = new();
+    private record EmployeeViewItem(Employee Employee, int LogCount, decimal CompBalance);
+
+    private List<Employee> _employees = [];
+    private List<EmployeeStatDto> _employeeStats = [];
+    private List<CompTimeBalanceDto> _compBalances = [];
+    private List<EmployeeViewItem> _viewItems = [];
+
+    private string _searchString = string.Empty;
+    private bool _isCardView = true;
+    private bool _isLoading = true;
+
+    private int _activeLoggerCount;
+    private int _totalLogCount;
+    private decimal _totalCompBalance;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadEmployees();
+        await LoadDataAsync();
     }
 
-    private async Task LoadEmployees()
+    private async Task LoadDataAsync()
     {
-        _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
-    }
-
-    private async Task AddEmployee()
-    {
-        if (string.IsNullOrWhiteSpace(_newEmployee.Name) || string.IsNullOrWhiteSpace(_newEmployee.Initials))
-        {
-            Snackbar.Add("Name and Initials are required", Severity.Warning);
-            return;
-        }
-
+        _isLoading = true;
         try
         {
-            // We need to add a method to WorkLogService for this
-            await WorkLogService.AddEmployeeAsync(_newEmployee);
-            _newEmployee = new Employee();
-            await LoadEmployees();
-            Snackbar.Add("Employee added", Severity.Success);
+            _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
+            _employeeStats = (await WorkLogService.GetEmployeeStatsAsync()).ToList();
+            _compBalances = (await WorkLogService.GetCompTimeStatsAsync()).ToList();
+
+            BuildViewItems();
         }
         catch (Exception ex)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            Snackbar.Add($"Error loading employees: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
         }
     }
 
-    private async Task DeleteEmployee(Employee emp)
+    private void BuildViewItems()
     {
-        var result = await DialogService.ShowMessageBoxAsync(
-            "Delete Employee", 
-            $"Are you sure you want to delete {emp.Name}? This may fail if they have existing work logs.", 
-            yesText: "Delete", cancelText: "Cancel");
+        var statMap = _employeeStats.ToDictionary(s => s.Name, s => s.Count, StringComparer.OrdinalIgnoreCase);
+        var compMap = _compBalances.ToDictionary(c => c.Id, c => c.Balance);
 
-        if (result == true)
+        _viewItems = _employees.Select(emp =>
+        {
+            var count = statMap.GetValueOrDefault(emp.Name, 0);
+            var balance = compMap.GetValueOrDefault(emp.Id, 0m);
+            return new EmployeeViewItem(emp, count, balance);
+        }).ToList();
+
+        _activeLoggerCount = _viewItems.Count(i => i.LogCount > 0);
+        _totalLogCount = _viewItems.Sum(i => i.LogCount);
+        _totalCompBalance = _viewItems.Sum(i => i.CompBalance);
+    }
+
+    private IEnumerable<EmployeeViewItem> FilteredEmployees =>
+        string.IsNullOrWhiteSpace(_searchString)
+            ? _viewItems
+            : _viewItems.Where(i =>
+                i.Employee.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase) ||
+                i.Employee.Initials.Contains(_searchString, StringComparison.OrdinalIgnoreCase));
+
+    private void OnViewChanged(bool isCardView)
+    {
+        _isCardView = isCardView;
+    }
+
+    private async Task OpenAddEmployeeDialog()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<EmployeeDialog>("Add Team Member", options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task OpenEditEmployeeDialog(Employee employee)
+    {
+        var parameters = new DialogParameters<EmployeeDialog>
+        {
+            { x => x.Employee, employee }
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<EmployeeDialog>("Edit Team Member", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task DeleteEmployee(EmployeeViewItem item)
+    {
+        var warningText = item.LogCount > 0
+            ? $"Warning: {item.Employee.Name} has {item.LogCount:N0} associated work logs. Deleting an employee with existing work logs will fail unless their logs are deleted or reassigned first."
+            : $"Are you sure you want to delete {item.Employee.Name} ({item.Employee.Initials})?";
+
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "Delete Employee",
+            warningText,
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
         {
             try
             {
-                await WorkLogService.DeleteEmployeeAsync(emp.Id);
-                await LoadEmployees();
-                Snackbar.Add("Employee removed", Severity.Success);
+                await WorkLogService.DeleteEmployeeAsync(item.Employee.Id);
+                Snackbar.Add($"Removed {item.Employee.Name}", Severity.Success);
+                await LoadDataAsync();
             }
             catch (Exception)
             {
-                Snackbar.Add("Cannot delete employee with existing logs.", Severity.Error);
+                Snackbar.Add("Cannot delete employee with existing activity logs.", Severity.Error);
             }
         }
+    }
+
+    private void NavigateToReports(int employeeId)
+    {
+        Navigation.NavigateTo($"/reports?employeeId={employeeId}");
+    }
+
+    private static Color GetAvatarColor(string name)
+    {
+        var colors = new[] { Color.Primary, Color.Secondary, Color.Info, Color.Success, Color.Warning, Color.Tertiary };
+        int hash = Math.Abs(name.GetHashCode());
+        return colors[hash % colors.Length];
     }
 }

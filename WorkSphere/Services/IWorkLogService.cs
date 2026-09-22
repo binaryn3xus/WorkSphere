@@ -7,6 +7,7 @@ public interface IWorkLogService
     #region Employees
     Task<IEnumerable<Employee>> GetEmployeesAsync();
     Task AddEmployeeAsync(Employee employee);
+    Task UpdateEmployeeAsync(Employee employee);
     Task DeleteEmployeeAsync(int id);
     #endregion
 

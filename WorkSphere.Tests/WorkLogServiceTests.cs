@@ -84,4 +84,17 @@ public class WorkLogServiceTests
         Assert.Equal(42, count);
         mock.Verify(s => s.GetWorkLogsCountByMonthAsync(2026, 9), Times.Once);
     }
+
+    [Fact]
+    public async Task IWorkLogService_UpdateEmployeeAsync_CanBeInvoked()
+    {
+        var mock = new Mock<IWorkLogService>();
+        var emp = new Employee { Id = 1, Name = "Alice Smith", Initials = "AS" };
+
+        mock.Setup(s => s.UpdateEmployeeAsync(It.IsAny<Employee>())).Returns(Task.CompletedTask);
+
+        await mock.Object.UpdateEmployeeAsync(emp);
+
+        mock.Verify(s => s.UpdateEmployeeAsync(It.Is<Employee>(e => e.Id == 1 && e.Name == "Alice Smith")), Times.Once);
+    }
 }

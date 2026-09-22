@@ -277,10 +277,17 @@
     private DateOnly? _filterEndDate;
     private bool _hideFutureDates = true;
 
+    [SupplyParameterFromQuery]
+    public int? EmployeeId { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         _employees = (await WorkLogService.GetEmployeesAsync()).ToList();
         _allLogs = (await WorkLogService.GetWorkLogsAsync()).ToList();
+        if (EmployeeId.HasValue && _employees.Any(e => e.Id == EmployeeId.Value))
+        {
+            _selectedEmployeeId = EmployeeId.Value;
+        }
         await CalculateStats();
     }
 
